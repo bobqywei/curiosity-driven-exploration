@@ -1,0 +1,12 @@
+use_gpu: False
+parallel_envs: 4
+# number of frames (channels) in raw state input (includes image frames from previous timesteps)
+state_frames: 4
+num_updates: ???
+rollout_steps: ???
+
+gamma: ???
+lambd: ???
+
+value_beta: ???
+entropy_beta: ???

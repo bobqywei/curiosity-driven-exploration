@@ -28,7 +28,7 @@ class Storage(object):
     def __init__(self, config):
         self.num_envs = config['parallel_envs']
 
-        self.states = []
+        self.states = [] # N - 4 x M tensors
         self.actions = []
         self.rewards = []
         self.values = []
@@ -51,7 +51,7 @@ class Storage(object):
         # self.features.extend(other.features)
 
     def process(self):
-        return map(lambda x: torch.cat(x, 0), [])
+        return map(lambda x: torch.cat(x, 0), [...])
 
 
 class ActorCritic(nn.Module):
@@ -94,6 +94,7 @@ class A2C(object):
         num_actions = self.env.action_space.n
         
         self.actor_critic = ActorCritic(num_actions)
+        self.optim = torch.nn.optim.Adam(self.actor_critic.parameters())
 
     def run_episode(self, obs):
         rollout = Storage()
@@ -108,6 +109,9 @@ class A2C(object):
             masks = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(???).unsqueeze(1)
 
             rollout.add(...)
+
+            if i == len(self.config['rollout_steps']) - 1:
+                rollout.add(final_value)
 
     def train(self):
         obs = self.env.reset()
@@ -130,7 +134,9 @@ class A2C(object):
             # TODO: Need to fix discount so that it returns same size tensor back
             advantages = discount(delta_t, gamma * lambd)
 
+            # action_log_probs = [4 x t x 1]
             policy_net_loss = (-action_log_probs * advantages.detach()).sum()
+            # BUG
             value_net_loss = (0.5 * (values - discounted_rewards) ** 2).sum()
             # TODO: need to reconsider which values need to be masked
             entropy_loss = entropies.sum()
@@ -138,4 +144,7 @@ class A2C(object):
             loss = policy_net_loss + value_net_loss * self.config['value_beta'] + entropy_loss * self.config['entropy_beta']
 
             # Do Update Step for Model
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
         
