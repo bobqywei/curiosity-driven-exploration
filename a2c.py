@@ -87,9 +87,10 @@ class ActorCritic(nn.Module):
 
 
 class A2C(object):
-    def __init__(self, config, env):
+    def __init__(self, config, env, device):
         self.config = config
         self.env = env
+        self.device = device
 
         num_actions = self.env.action_space.n
         
@@ -106,7 +107,7 @@ class A2C(object):
             # reset feature extractor LSTM cell and hidden states
             self.actor_critic.reset_lstm(dones)
 
-            masks = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(???).unsqueeze(1)
+            masks = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device).unsqueeze(1)
 
             rollout.add(...)
 
