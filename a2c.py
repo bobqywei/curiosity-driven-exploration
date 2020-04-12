@@ -7,51 +7,50 @@ import torch.nn.functional as F
 from modules import FeatureEncoderNet
 
 
-def discount(x, masks, gamma):
-    """
-        x = [r1, r2, r3, ..., rN]
-        returns [r1 + r2*gamma + r3*gamma^2 + ...,
-                   r2 + r3*gamma + r4*gamma^2 + ...,
-                     r3 + r4*gamma + r5*gamma^2 + ...,
-                        ..., ..., rN]
-    """
-    num_steps = len(x)
-    X = x[-1]
-    out = torch.zeros((x.shape), device=)
-    for t in reversed(range(num_steps-1)):
-        X = x[t] + X * gamma * masks[t]
-        out[t] = X
-    return torch.cat(out, 0)
-
-
 class Storage(object):
     def __init__(self, config):
         self.num_envs = config['parallel_envs']
 
-        self.states = [] # N - 4 x M tensors
+        # self.states = [] # N - 4 x M tensors
         self.actions = []
+        self.action_log_probs = []
         self.rewards = []
         self.values = []
-        self.r = 0.0
+        # self.final_value = 0.0
+        self.entropies = []
+        self.masks = []
         # self.features = []
 
-    def add(self, state, action, reward, value):
-        self.states += [state]
+    def add(self, action, action_log_prob, reward, value, mask, entropy):
+        # self.states += [state]
         self.actions += [action]
+        self.action_log_probs += [action_log_prob]
         self.rewards += [reward]
         self.values += [value]
+        self.masks += [mask]
+        self.entropies += [entropy]
         # self.features += [features]
 
     def extend(self, other):
-        self.states.extend(other.states)
+        # self.states.extend(other.states)
         self.actions.extend(other.actions)
+        self.action_log_probs.extend(other.action_log_probs)
         self.rewards.extend(other.rewards)
         self.values.extend(other.values)
-        self.r = other.r
+        # self.final_value = other.final_value
+        self.masks = other.masks
+        self.entropies = other.entropies
         # self.features.extend(other.features)
 
     def process(self):
-        return map(lambda x: torch.cat(x, 0), [...])
+        return map(lambda x: torch.cat(x, 0), [
+            self.actions, 
+            self.action_log_probs, 
+            self.values, 
+            self.rewards, 
+            self.masks, 
+            # self.final_value, 
+            self.entropies])
 
 
 class ActorCritic(nn.Module):
@@ -97,55 +96,74 @@ class A2C(object):
         self.actor_critic = ActorCritic(num_actions)
         self.optim = torch.nn.optim.Adam(self.actor_critic.parameters())
 
+    
+    def discount(self, x, masks, gamma):
+        """
+            x = [r1, r2, r3, ..., rN]
+            returns [r1 + r2*gamma + r3*gamma^2 + ...,
+                     r2 + r3*gamma + r4*gamma^2 + ...,
+                     r3 + r4*gamma + r5*gamma^2 + ...,
+                    ..., ..., rN]
+        """
+        num_steps = len(x)
+        X = x[-1]
+        out = torch.zeros((x.shape), device=self.device)
+        for t in reversed(range(num_steps-1)):
+            X = x[t] + X * gamma * masks[t]
+            out[t] = X
+        return torch.cat(out, 0)
+
+
     def run_episode(self, obs):
         rollout = Storage()
         
         for i in range(self.config['rollout_steps']):
             next_action, action_log_prob, entropy, value = self.actor_critic(obs)
-            obs, rewards, dones, infos = env.step(next_action.cpu().numpy())
+            obs, rewards, dones, infos = self.env.step(next_action.cpu().numpy())
 
             # reset feature extractor LSTM cell and hidden states
             self.actor_critic.reset_lstm(dones)
 
-            masks = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device).unsqueeze(1)
+            mask = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device).unsqueeze(1)
 
-            rollout.add(...)
+            rollout.add(next_action, action_log_prob, rewards, value, mask, entropy)
 
-            if i == len(self.config['rollout_steps']) - 1:
-                rollout.add(final_value)
+        if i == len(self.config['rollout_steps']) - 1:
+            rollout.add(value)
+
+        return rollout, obs
 
     def train(self):
         obs = self.env.reset()
         gamma = self.config['gamma']
-        lamb = self.config['lambd']
-
-        # Need optimizers
+        # lambd = self.config['lambd']        
 
         for i in range(self.config['num_updates']):
-            rollout = run_episode(obs)
+            rollout, obs = self.run_episode(obs)
             actions, action_log_probs, values, rewards, masks, final_value, entropies = rollout.process()
 
             # collecting target for value network
             # V_t <-> r_t + gamma*r_{t+1} + ... + gamma^n*r_{t+n} + gamma^{n+1}*V_{n+1}
-            rewards_plus_v = torch.cat([rewards, final_value.unsqueeze(0)], 0)
-            discounted_rewards = discount(rewards_plus_v, masks, gamma)[:-1]
+            rewards_plus_v = torch.cat([rewards, values[0,-1].unsqueeze(0)], 0)
+            # discount accumulates rewards for each rollout step
+            discounted_rewards = self.discount(rewards_plus_v, masks, gamma)[:-1]
 
-            values = torch.cat([values, final_value.unsqueeze(0)], 0)
-            delta_t = rewards + gamma * values[1:] - values[:-1]
+            # values is length n = num rollout_steps
+            # each v_i is the predicted accumulated reward starting from the ith rollout_step
+            advantages = discounted_rewards - values
             # TODO: Need to fix discount so that it returns same size tensor back
-            advantages = discount(delta_t, gamma * lambd)
+            # advantages = self.discount(delta_t, gamma * lambd)
 
             # action_log_probs = [4 x t x 1]
             policy_net_loss = (-action_log_probs * advantages.detach()).sum()
             # BUG
-            value_net_loss = (0.5 * (values - discounted_rewards) ** 2).sum()
+            value_net_loss = 0.5 * (advantages ** 2).sum()
             # TODO: need to reconsider which values need to be masked
             entropy_loss = entropies.sum()
-
             loss = policy_net_loss + value_net_loss * self.config['value_beta'] + entropy_loss * self.config['entropy_beta']
 
             # Do Update Step for Model
-            optim.zero_grad()
+            self.optim.zero_grad()
             loss.backward()
-            optim.step()
+            self.optim.step()
         
