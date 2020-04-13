@@ -1,15 +1,24 @@
 task: "PongNoFrameskip-v4"
+outdir: "results/debug/"
 
-use_gpu: False
-parallel_envs: 2
+use_gpu: True
+use_tqdm: True
+use_tensorboard: True
+
+seed: 1234
+parallel_envs: 4
 # number of frames (channels) in raw state input (includes image frames from previous timesteps)
 state_frames: 4
 num_updates: 2500000
 rollout_steps: 5
+lr: 0.0001
+max_grad_norm: 0.5
 
 # discount factor
 gamma: 0.99
-
 # loss terms weighting
 value_beta: 0.5
 entropy_beta: 0.02
+
+log_iters: 100
+save_iters: 10000
