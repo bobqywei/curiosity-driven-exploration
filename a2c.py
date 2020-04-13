@@ -97,6 +97,18 @@ class A2C(object):
         self.actor_critic = ActorCritic(num_actions, config)
         self.optim = torch.optim.Adam(self.actor_critic.parameters())
 
+
+    def obs2tensor(self, obs):
+        # 1. reorder dimensions for nn.Conv2d (batch, ch_in, width, height)
+        # 2. convert numpy array to _normalized_ FloatTensor
+        # import ipdb; ipdb.set_trace()
+        import matplotlib.pyplot as plt
+        plt.imshow(obs[0,:,:,0])
+        plt.show()
+        import ipdb; ipdb.set_trace()
+        tensor = torch.from_numpy(obs.astype(np.float32).transpose((0, 3, 1, 2))) / 255
+        return tensor.to(self.device)
+
     
     def discount(self, x, masks, gamma):
         """
@@ -119,7 +131,7 @@ class A2C(object):
         rollout = Storage(self.config['parallel_envs'])
         
         for i in range(self.config['rollout_steps']):
-            next_action, action_log_prob, entropy, value = self.actor_critic(obs)
+            next_action, action_log_prob, entropy, value = self.actor_critic(self.obs2tensor(obs))
             obs, rewards, dones, infos = self.env.step(next_action.cpu().numpy())
 
             # reset feature extractor LSTM cell and hidden states
