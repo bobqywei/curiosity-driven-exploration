@@ -1,7 +1,7 @@
-task: "Acrobot-v1"
+task: "PongNoFrameskip-v4"
 
 use_gpu: False
-parallel_envs: 4
+parallel_envs: 2
 # number of frames (channels) in raw state input (includes image frames from previous timesteps)
 state_frames: 4
 num_updates: 2500000
