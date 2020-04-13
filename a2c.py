@@ -8,8 +8,8 @@ from modules import FeatureEncoderNet
 
 
 class Storage(object):
-    def __init__(self, config):
-        self.num_envs = config['parallel_envs']
+    def __init__(self, num_envs):
+        self.num_envs = num_envs
 
         # self.states = [] # N - 4 x M tensors
         self.actions = []
@@ -54,8 +54,9 @@ class Storage(object):
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, action_space_size):
-        super(self, ActorCritic).__init__()
+    def __init__(self, action_space_size, config):
+        super(ActorCritic, self).__init__()
+
         features_size = 288 # 288 = (48/(2^4))^2 * 32 
         self.extract_feats = FeatureEncoderNet(
             batch_size=config['parallel_envs'], 
@@ -93,8 +94,8 @@ class A2C(object):
 
         num_actions = self.env.action_space.n
         
-        self.actor_critic = ActorCritic(num_actions)
-        self.optim = torch.nn.optim.Adam(self.actor_critic.parameters())
+        self.actor_critic = ActorCritic(num_actions, config)
+        self.optim = torch.optim.Adam(self.actor_critic.parameters())
 
     
     def discount(self, x, masks, gamma):
@@ -115,7 +116,7 @@ class A2C(object):
 
 
     def run_episode(self, obs):
-        rollout = Storage()
+        rollout = Storage(self.config['parallel_envs'])
         
         for i in range(self.config['rollout_steps']):
             next_action, action_log_prob, entropy, value = self.actor_critic(obs)
@@ -157,9 +158,9 @@ class A2C(object):
             # action_log_probs = [4 x t x 1]
             policy_net_loss = (-action_log_probs * advantages.detach()).sum()
             # BUG
-            value_net_loss = 0.5 * (advantages ** 2).sum()
+            value_net_loss = 0.5 * (advantages ** 2).mean()
             # TODO: need to reconsider which values need to be masked
-            entropy_loss = entropies.sum()
+            entropy_loss = entropies.mean()
             loss = policy_net_loss + value_net_loss * self.config['value_beta'] + entropy_loss * self.config['entropy_beta']
 
             # Do Update Step for Model
