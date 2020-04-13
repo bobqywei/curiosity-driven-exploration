@@ -1,56 +1,12 @@
+import os
 import torch
 import torch.nn as nn
 import numpy as np
-import scipy.signal
 import torch.nn.functional as F
 
-from modules import FeatureEncoderNet
+from tqdm import tqdm
 
-
-class Storage(object):
-    def __init__(self, num_envs):
-        self.num_envs = num_envs
-
-        # self.states = [] # N - 4 x M tensors
-        self.actions = []
-        self.action_log_probs = []
-        self.rewards = []
-        self.values = []
-        # self.final_value = 0.0
-        self.entropies = []
-        self.masks = []
-        # self.features = []
-
-    def add(self, action, action_log_prob, reward, value, mask, entropy):
-        # self.states += [state]
-        self.actions += [action]
-        self.action_log_probs += [action_log_prob]
-        self.rewards += [reward]
-        self.values += [value]
-        self.masks += [mask]
-        self.entropies += [entropy]
-        # self.features += [features]
-
-    def extend(self, other):
-        # self.states.extend(other.states)
-        self.actions.extend(other.actions)
-        self.action_log_probs.extend(other.action_log_probs)
-        self.rewards.extend(other.rewards)
-        self.values.extend(other.values)
-        # self.final_value = other.final_value
-        self.masks = other.masks
-        self.entropies = other.entropies
-        # self.features.extend(other.features)
-
-    def process(self):
-        return map(lambda x: torch.cat(x, 0), [
-            self.actions, 
-            self.action_log_probs, 
-            self.values, 
-            self.rewards, 
-            self.masks, 
-            # self.final_value, 
-            self.entropies])
+from modules import FeatureEncoderNet, Storage
 
 
 class ActorCritic(nn.Module):
@@ -59,7 +15,7 @@ class ActorCritic(nn.Module):
 
         features_size = 288 # 288 = (48/(2^4))^2 * 32 
         self.extract_feats = FeatureEncoderNet(
-            batch_size=config['parallel_envs'], 
+            buf_size=config['parallel_envs'],
             ch_in=config['state_frames'],
             conv_out_size=features_size, 
             lstm_hidden_size=features_size) # original paper used 256
@@ -80,35 +36,32 @@ class ActorCritic(nn.Module):
         actions_distr = torch.distributions.Categorical(actions_prob)
         next_action = actions_distr.sample()
 
-        return next_action, actions_distr.log_prob(next_action), actions_distr.entropy.mean(), value
+        return next_action, actions_distr.log_prob(next_action), actions_distr.entropy().mean(), value.squeeze(1)
 
     def reset_lstm(self, reset_indices):
         self.extract_feats.reset_lstm(reset_indices)
 
 
 class A2C(object):
-    def __init__(self, config, env, device):
+    def __init__(self, config, env, device, logger, writer=None):
         self.config = config
         self.env = env
         self.device = device
+        self.logger = logger
+        self.writer = writer
 
         num_actions = self.env.action_space.n
         
-        self.actor_critic = ActorCritic(num_actions, config)
-        self.optim = torch.optim.Adam(self.actor_critic.parameters())
+        self.actor_critic = ActorCritic(num_actions, config).to(device)
+        self.optim = torch.optim.Adam(self.actor_critic.parameters(), lr=config['lr'])
 
-
-    def obs2tensor(self, obs):
+    def process_obs(self, obs):
         # 1. reorder dimensions for nn.Conv2d (batch, ch_in, width, height)
         # 2. convert numpy array to _normalized_ FloatTensor
-        # import ipdb; ipdb.set_trace()
-        import matplotlib.pyplot as plt
-        plt.imshow(obs[0,:,:,0])
-        plt.show()
-        import ipdb; ipdb.set_trace()
         tensor = torch.from_numpy(obs.astype(np.float32).transpose((0, 3, 1, 2))) / 255
+        # Resize spatial size to 48
+        tensor = torch.nn.functional.interpolate(tensor, scale_factor=48/tensor.shape[-1])
         return tensor.to(self.device)
-
     
     def discount(self, x, masks, gamma):
         """
@@ -124,59 +77,94 @@ class A2C(object):
         for t in reversed(range(num_steps-1)):
             X = x[t] + X * gamma * masks[t]
             out[t] = X
-        return torch.cat(out, 0)
-
+        return out
 
     def run_episode(self, obs):
         rollout = Storage(self.config['parallel_envs'])
         
         for i in range(self.config['rollout_steps']):
-            next_action, action_log_prob, entropy, value = self.actor_critic(self.obs2tensor(obs))
+            next_action, action_log_prob, entropy, value = self.actor_critic(self.process_obs(obs))
             obs, rewards, dones, infos = self.env.step(next_action.cpu().numpy())
 
-            # reset feature extractor LSTM cell and hidden states
-            self.actor_critic.reset_lstm(dones)
-
-            mask = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device).unsqueeze(1)
+            mask = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device)
+            rewards = torch.from_numpy(rewards).to(self.device)
 
             rollout.add(next_action, action_log_prob, rewards, value, mask, entropy)
 
-        if i == len(self.config['rollout_steps']) - 1:
-            rollout.add(value)
+            # reset feature extractor LSTM cell and hidden states
+            self.actor_critic.reset_lstm(dones)
 
         return rollout, obs
 
     def train(self):
         obs = self.env.reset()
         gamma = self.config['gamma']
-        # lambd = self.config['lambd']        
+        best_loss = np.inf
 
-        for i in range(self.config['num_updates']):
+        iter_range = range(1, self.config['num_updates']+1)
+        if self.config['use_tqdm']:
+            iter_range = tqdm(iter_range)
+
+        for i in iter_range:
             rollout, obs = self.run_episode(obs)
-            actions, action_log_probs, values, rewards, masks, final_value, entropies = rollout.process()
+            actions, action_log_probs, values, rewards, masks, entropies = rollout.process()
 
             # collecting target for value network
             # V_t <-> r_t + gamma*r_{t+1} + ... + gamma^n*r_{t+n} + gamma^{n+1}*V_{n+1}
-            rewards_plus_v = torch.cat([rewards, values[0,-1].unsqueeze(0)], 0)
+            # append final value
+            rewards_plus_v = torch.cat([rewards, values[-1, :].unsqueeze(0)], 0)
             # discount accumulates rewards for each rollout step
             discounted_rewards = self.discount(rewards_plus_v, masks, gamma)[:-1]
 
             # values is length n = num rollout_steps
             # each v_i is the predicted accumulated reward starting from the ith rollout_step
-            advantages = discounted_rewards - values
+            advantages = discounted_rewards - values.detach()
             # TODO: Need to fix discount so that it returns same size tensor back
             # advantages = self.discount(delta_t, gamma * lambd)
 
             # action_log_probs = [4 x t x 1]
-            policy_net_loss = (-action_log_probs * advantages.detach()).sum()
+            policy_net_loss = (-action_log_probs * advantages).mean()
             # BUG
-            value_net_loss = 0.5 * (advantages ** 2).mean()
+            value_net_loss = 0.5 * (advantages ** 2).mean() * self.config['value_beta']
             # TODO: need to reconsider which values need to be masked
-            entropy_loss = entropies.mean()
-            loss = policy_net_loss + value_net_loss * self.config['value_beta'] + entropy_loss * self.config['entropy_beta']
+            entropy = entropies.sum() * self.config['entropy_beta']
+
+            loss = policy_net_loss + value_net_loss - entropy
 
             # Do Update Step for Model
             self.optim.zero_grad()
             loss.backward()
+            # clip gradients for better stability
+            nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.config['max_grad_norm'])
             self.optim.step()
-        
+            
+            output = "Update {}/{}\n".format(i, self.config['num_updates'])
+                
+            # =======================================================================================================
+            # SAVE CHECKPOINTS
+            # =======================================================================================================
+            if loss < best_loss:
+                best_loss = loss.item()
+                output += "Model saved with best loss\n"
+                torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_best_ckpt'))
+
+            if i % self.config['save_iters'] == 0:
+                output += "Model saved at iter\n"
+                torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_recent_ckpt'))
+
+            # =======================================================================================================
+            # LOGGING
+            # =======================================================================================================
+            output += "loss: {:.4f}, ".format(loss.item())
+            output += "policy_net_loss: {:.4f}, ".format(policy_net_loss.item())
+            output += "value_net_loss: {:.4f}, ".format(value_net_loss.item())
+            output += "entropy: {:.4f}, ".format(entropy.item())
+            output += "reward: {:.4f}\n".format(rewards.sum().item())
+            self.logger.info(output)
+
+            if self.writer is not None and i % self.config['log_iters'] == 0:
+                self.writer.add_scalar('Loss', loss.item(), i)
+                self.writer.add_scalar('policy_loss', policy_net_loss.item(), i)
+                self.writer.add_scalar('value_loss', value_net_loss.item(), i)
+                self.writer.add_scalar('entropy', entropy.item(), i)
+                self.writer.add_scalar('episode_reward_sum', rewards.sum().item(), i)
