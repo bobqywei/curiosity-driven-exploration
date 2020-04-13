@@ -50,8 +50,10 @@ class A2C(object):
         self.logger = logger
         self.writer = writer
 
+        self.ep_rewards = [0] * config['parallel_envs']
+        self.ep_num = [0] * config['parallel_envs']
+
         num_actions = self.env.action_space.n
-        
         self.actor_critic = ActorCritic(num_actions, config).to(device)
         self.optim = torch.optim.Adam(self.actor_critic.parameters(), lr=config['lr'])
 
@@ -63,7 +65,7 @@ class A2C(object):
         tensor = torch.nn.functional.interpolate(tensor, scale_factor=48/tensor.shape[-1])
         return tensor.to(self.device)
     
-    def discount(self, x, masks, gamma):
+    def discount(self, x, masks, final_value, gamma):
         """
             x = [r1, r2, r3, ..., rN]
             returns [r1 + r2*gamma + r3*gamma^2 + ...,
@@ -72,9 +74,9 @@ class A2C(object):
                     ..., ..., rN]
         """
         num_steps = len(x)
-        X = x[-1]
+        X = final_value
         out = torch.zeros((x.shape), device=self.device)
-        for t in reversed(range(num_steps-1)):
+        for t in reversed(range(num_steps)):
             X = x[t] + X * gamma * masks[t]
             out[t] = X
         return out
@@ -89,12 +91,25 @@ class A2C(object):
             mask = (1 - torch.from_numpy(np.array(dones, dtype=np.float32))).to(self.device)
             rewards = torch.from_numpy(rewards).to(self.device)
 
+            # store values from current step
             rollout.add(next_action, action_log_prob, rewards, value, mask, entropy)
+
+            # accumulate rewards over entire episode (until done)
+            for env in range(len(rewards)):
+                self.ep_rewards[env] += rewards[env].item()
+                # log accumulated reward when an episode is done and reset
+                if dones[env] > 0:
+                    self.ep_num[env] += 1
+                    self.writer.add_scalar('train/env{}_ep_reward'.format(env), self.ep_rewards[env], self.ep_num[env])
+                    self.ep_rewards[env] = 0.0
 
             # reset feature extractor LSTM cell and hidden states
             self.actor_critic.reset_lstm(dones)
 
-        return rollout, obs
+        with torch.no_grad():
+            _, _, _, final_value = self.actor_critic(self.process_obs(obs)) 
+
+        return rollout, obs, final_value
 
     def train(self):
         obs = self.env.reset()
@@ -106,30 +121,26 @@ class A2C(object):
             iter_range = tqdm(iter_range)
 
         for i in iter_range:
-            rollout, obs = self.run_episode(obs)
+            rollout, obs, final_value = self.run_episode(obs)
             actions, action_log_probs, values, rewards, masks, entropies = rollout.process()
 
             # collecting target for value network
             # V_t <-> r_t + gamma*r_{t+1} + ... + gamma^n*r_{t+n} + gamma^{n+1}*V_{n+1}
             # append final value
-            rewards_plus_v = torch.cat([rewards, values[-1, :].unsqueeze(0)], 0)
+            # rewards_plus_v = torch.cat([rewards, values[-1, :].detach().unsqueeze(0)], 0)
             # discount accumulates rewards for each rollout step
-            discounted_rewards = self.discount(rewards_plus_v, masks, gamma)[:-1]
+            discounted_rewards = self.discount(rewards, masks, final_value, gamma)
 
             # values is length n = num rollout_steps
             # each v_i is the predicted accumulated reward starting from the ith rollout_step
-            advantages = discounted_rewards - values.detach()
-            # TODO: Need to fix discount so that it returns same size tensor back
-            # advantages = self.discount(delta_t, gamma * lambd)
+            advantages = discounted_rewards - values
 
             # action_log_probs = [4 x t x 1]
-            policy_net_loss = (-action_log_probs * advantages).mean()
-            # BUG
-            value_net_loss = 0.5 * (advantages ** 2).mean() * self.config['value_beta']
-            # TODO: need to reconsider which values need to be masked
+            policy_net_loss = (-action_log_probs * advantages.detach()).mean()
+            value_net_loss = (advantages ** 2).mean() * self.config['value_beta']
             entropy = entropies.sum() * self.config['entropy_beta']
 
-            loss = policy_net_loss + value_net_loss - entropy
+            loss = policy_net_loss + value_net_loss + entropy
 
             # Do Update Step for Model
             self.optim.zero_grad()
@@ -138,33 +149,31 @@ class A2C(object):
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.config['max_grad_norm'])
             self.optim.step()
             
-            output = "Update {}/{}\n".format(i, self.config['num_updates'])
-                
             # =======================================================================================================
             # SAVE CHECKPOINTS
             # =======================================================================================================
             if loss < best_loss:
                 best_loss = loss.item()
-                output += "Model saved with best loss\n"
                 torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_best_ckpt'))
 
             if i % self.config['save_iters'] == 0:
-                output += "Model saved at iter\n"
                 torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_recent_ckpt'))
 
             # =======================================================================================================
             # LOGGING
             # =======================================================================================================
-            output += "loss: {:.4f}, ".format(loss.item())
-            output += "policy_net_loss: {:.4f}, ".format(policy_net_loss.item())
-            output += "value_net_loss: {:.4f}, ".format(value_net_loss.item())
-            output += "entropy: {:.4f}, ".format(entropy.item())
-            output += "reward: {:.4f}\n".format(rewards.sum().item())
-            self.logger.info(output)
-
             if self.writer is not None and i % self.config['log_iters'] == 0:
-                self.writer.add_scalar('Loss', loss.item(), i)
-                self.writer.add_scalar('policy_loss', policy_net_loss.item(), i)
-                self.writer.add_scalar('value_loss', value_net_loss.item(), i)
-                self.writer.add_scalar('entropy', entropy.item(), i)
-                self.writer.add_scalar('episode_reward_sum', rewards.sum().item(), i)
+                if self.writer is not None:
+                    self.writer.add_scalar('train/loss', loss.item(), i)
+                    self.writer.add_scalar('train/policy_loss', policy_net_loss.item(), i)
+                    self.writer.add_scalar('train/value_loss', value_net_loss.item(), i)
+                    self.writer.add_scalar('train/entropy', entropy.item(), i)
+                    self.writer.add_scalar('train/step_reward', rewards.sum().item(), i)
+
+                output = "Update {}/{}\n".format(i, self.config['num_updates'])
+                output += "loss: {:.4f}, ".format(loss.item())
+                output += "policy_net_loss: {:.4f}, ".format(policy_net_loss.item())
+                output += "value_net_loss: {:.4f}, ".format(value_net_loss.item())
+                output += "entropy: {:.4f}, ".format(entropy.item())
+                output += "step_reward: {:.4f}\n".format(rewards.sum().item())
+                self.logger.info(output)
