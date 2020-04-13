@@ -1,14 +1,15 @@
+task: "Acrobot-v1"
+
 use_gpu: False
 parallel_envs: 4
 # number of frames (channels) in raw state input (includes image frames from previous timesteps)
 state_frames: 4
-num_updates: ???
-rollout_steps: ???
+num_updates: 2500000
+rollout_steps: 5
 
-gamma: ???
-lambd: ???
+# discount factor
+gamma: 0.99
 
-value_beta: ???
-entropy_beta: ???
-
-task: "Acrobot-v1"
+# loss terms weighting
+value_beta: 0.5
+entropy_beta: 0.02
