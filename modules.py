@@ -15,9 +15,10 @@ class Storage(object):
         # self.final_value = 0.0
         self.entropies = []
         self.masks = []
+        self.irewards = [] # ICM rewards
         # self.features = []
 
-    def add(self, action, action_log_prob, reward, value, mask, entropy):
+    def add(self, action, action_log_prob, reward, value, mask, entropy, ireward=None):
         # self.states += [state]
         self.actions += [action]
         self.action_log_probs += [action_log_prob]
@@ -25,16 +26,19 @@ class Storage(object):
         self.values += [value]
         self.masks += [mask]
         self.entropies += [entropy]
+        if ireward is not None:
+            self.irewards += [ireward]
         # self.features += [features]
 
     def process(self):
-        return map(lambda x: torch.cat([t.unsqueeze(0) for t in x], 0), [
+        return map(lambda x: torch.cat([t.unsqueeze(0) for t in x], 0), filter(lambda x: len(x) > 0,[
             self.actions, 
             self.action_log_probs, 
             self.values, 
             self.rewards, 
             self.masks, 
-            self.entropies])
+            self.entropies,
+            self.irewards]))
 
 
 class FeatureEncoderNet(nn.Module):

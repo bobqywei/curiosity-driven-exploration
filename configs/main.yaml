@@ -7,6 +7,7 @@ outdir: "results/debug/"
 use_gpu: False
 use_tqdm: False
 use_tensorboard: True
+use_icm: False
 
 seed: 1234
 parallel_envs: 4
@@ -25,3 +26,7 @@ entropy_beta: 0.02
 
 log_iters: 25
 save_iters: 10000
+
+# ICM
+fwd_beta: 0.2
+pred_beta: 0.01
