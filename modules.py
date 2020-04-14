@@ -94,6 +94,7 @@ class FeatureEncoderNet(nn.Module):
 
     def _apply(self, fn):
         super(FeatureEncoderNet, self)._apply(fn)
-        self._lstm_hidden_state = fn(self._lstm_hidden_state)
-        self._lstm_cell_state = fn(self._lstm_cell_state)
+        if self.use_lstm:
+            self._lstm_hidden_state = fn(self._lstm_hidden_state)
+            self._lstm_cell_state = fn(self._lstm_cell_state)
         return self

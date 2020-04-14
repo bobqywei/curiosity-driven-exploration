@@ -60,7 +60,7 @@ class A2C(object):
         if self.config['use_icm']:
             self.icm_fwd_loss = []
             self.icm_inv_loss = []
-            self.curiosity = ICMAgent(self.num_actions, self.config, self.device)
+            self.curiosity = ICMAgent(self.num_actions, self.config, self.device).to(self.device)
             # lr might have to be diff
             self.optim_icm = torch.optim.Adam(self.curiosity.parameters(), lr=config['lr'])
 
