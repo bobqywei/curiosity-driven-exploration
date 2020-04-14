@@ -1,9 +1,10 @@
-task: "PongNoFrameskip-v0"
+# task: "PongNoFrameskip-v0"
 # task: "SeaquestNoFrameskip-v0"
+task: "SkiingNoFrameskip-v4"
 
 outdir: "results/debug/"
 
-use_gpu: True
+use_gpu: False
 use_tqdm: False
 use_tensorboard: True
 
