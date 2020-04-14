@@ -1,4 +1,6 @@
-task: "PongNoFrameskip-v4"
+task: "PongNoFrameskip-v0"
+# task: "SeaquestNoFrameskip-v0"
+
 outdir: "results/debug/"
 
 use_gpu: True
@@ -20,5 +22,5 @@ gamma: 0.99
 value_beta: 0.5
 entropy_beta: 0.02
 
-log_iters: 100
+log_iters: 25
 save_iters: 10000

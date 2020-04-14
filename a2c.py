@@ -5,6 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 
 from tqdm import tqdm
+from collections import deque
 
 from modules import FeatureEncoderNet, Storage
 
@@ -32,7 +33,7 @@ class ActorCritic(nn.Module):
         policy_logits = self.actor(feature)
         value = self.critic(feature)
 
-        actions_prob = F.softmax(policy_logits)
+        actions_prob = F.softmax(policy_logits, dim=-1)
         actions_distr = torch.distributions.Categorical(actions_prob)
         next_action = actions_distr.sample()
 
@@ -50,8 +51,7 @@ class A2C(object):
         self.logger = logger
         self.writer = writer
 
-        self.ep_rewards = [0] * config['parallel_envs']
-        self.ep_num = [0] * config['parallel_envs']
+        self.ep_rewards = deque(maxlen=4)
 
         num_actions = self.env.action_space.n
         self.actor_critic = ActorCritic(num_actions, config).to(device)
@@ -94,18 +94,14 @@ class A2C(object):
             # store values from current step
             rollout.add(next_action, action_log_prob, rewards, value, mask, entropy)
 
-            # accumulate rewards over entire episode (until done)
-            for env in range(len(rewards)):
-                self.ep_rewards[env] += rewards[env].item()
-                # log accumulated reward when an episode is done and reset
-                if dones[env] > 0:
-                    self.ep_num[env] += 1
-                    self.writer.add_scalar('train/env{}_ep_reward'.format(env), self.ep_rewards[env], self.ep_num[env])
-                    self.ep_rewards[env] = 0.0
-
             # reset feature extractor LSTM cell and hidden states
             self.actor_critic.reset_lstm(dones)
 
+            for info in infos:
+                if 'episode' in info.keys():
+                    self.ep_rewards.append(info['episode']['r'])
+
+        # use final_value as prediction of final reward in discounted accumulation
         with torch.no_grad():
             _, _, _, final_value = self.actor_critic(self.process_obs(obs)) 
 
@@ -140,7 +136,7 @@ class A2C(object):
             value_net_loss = (advantages ** 2).mean() * self.config['value_beta']
             entropy = entropies.sum() * self.config['entropy_beta']
 
-            loss = policy_net_loss + value_net_loss + entropy
+            loss = policy_net_loss + value_net_loss - entropy
 
             # Do Update Step for Model
             self.optim.zero_grad()
@@ -152,9 +148,9 @@ class A2C(object):
             # =======================================================================================================
             # SAVE CHECKPOINTS
             # =======================================================================================================
-            if loss < best_loss:
-                best_loss = loss.item()
-                torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_best_ckpt'))
+            # if loss < best_loss:
+            #     best_loss = loss.item()
+            #     torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_best_ckpt'))
 
             if i % self.config['save_iters'] == 0:
                 torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_recent_ckpt'))
@@ -163,17 +159,18 @@ class A2C(object):
             # LOGGING
             # =======================================================================================================
             if self.writer is not None and i % self.config['log_iters'] == 0:
+                ep_max_reward = np.max(self.ep_rewards) if len(self.ep_rewards) > 0 else 0.0
                 if self.writer is not None:
                     self.writer.add_scalar('train/loss', loss.item(), i)
                     self.writer.add_scalar('train/policy_loss', policy_net_loss.item(), i)
                     self.writer.add_scalar('train/value_loss', value_net_loss.item(), i)
                     self.writer.add_scalar('train/entropy', entropy.item(), i)
-                    self.writer.add_scalar('train/step_reward', rewards.sum().item(), i)
+                    self.writer.add_scalar('train/ep_max_reward', ep_max_reward, i)
 
                 output = "Update {}/{}\n".format(i, self.config['num_updates'])
                 output += "loss: {:.4f}, ".format(loss.item())
                 output += "policy_net_loss: {:.4f}, ".format(policy_net_loss.item())
                 output += "value_net_loss: {:.4f}, ".format(value_net_loss.item())
                 output += "entropy: {:.4f}, ".format(entropy.item())
-                output += "step_reward: {:.4f}\n".format(rewards.sum().item())
+                output += "ep_max_reward: {:.4f}\n".format(ep_max_reward)
                 self.logger.info(output)
