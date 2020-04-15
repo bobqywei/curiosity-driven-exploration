@@ -35,7 +35,8 @@ class ActorCritic(nn.Module):
 
         actions_prob = F.softmax(policy_logits, dim=-1)
         actions_distr = torch.distributions.Categorical(actions_prob)
-        next_action = actions_distr.sample()
+        with torch.no_grad():
+            next_action = actions_distr.sample()
 
         return next_action, actions_distr.log_prob(next_action), actions_distr.entropy().mean(), value.squeeze(1)
 
@@ -55,14 +56,17 @@ class A2C(object):
 
         self.num_actions = self.env.action_space.n
         self.actor_critic = ActorCritic(self.num_actions, config).to(device)
-        self.optim = torch.optim.Adam(self.actor_critic.parameters(), lr=config['lr'])
 
         if self.config['use_icm']:
             self.icm_fwd_loss = []
             self.icm_inv_loss = []
             self.curiosity = ICMAgent(self.num_actions, self.config, self.device).to(self.device)
             # lr might have to be diff
-            self.optim_icm = torch.optim.Adam(self.curiosity.parameters(), lr=config['lr'])
+            # self.optim_icm = torch.optim.Adam(self.curiosity.parameters(), lr=0.1)
+            self.cross_entropy_loss = nn.CrossEntropyLoss()
+            self.optim = torch.optim.Adam(list(self.actor_critic.parameters()) + list(self.curiosity.parameters()), lr=config['lr'])
+        else:
+            self.optim = torch.optim.Adam(self.actor_critic.parameters(), lr=config['lr'])
 
     def process_obs(self, obs):
         # 1. reorder dimensions for nn.Conv2d (batch, ch_in, width, height)
@@ -105,23 +109,26 @@ class A2C(object):
             
             if self.config['use_icm']:
                 # ICM stuff here
-                action = torch.zeros((4,self.num_actions), dtype=torch.float32, device=self.device)
-                for i in range(4):
-                    action[i,next_action[i]] = 1
-                ireward, next_pred_state_features, pred_action, next_state_features = self.curiosity.forward(
-                    action, 
-                    self.process_obs(curr_state), 
-                    self.process_obs(obs)
-                    )
-                fwd_model_loss = ((next_pred_state_features-next_state_features)**2).mean()
-                inverse_model_loss = ((pred_action-action)**2).mean()
-                self.icm_fwd_loss += [fwd_model_loss.item()*self.config['fwd_beta']]
-                self.icm_inv_loss += [inverse_model_loss.item()*(1-self.config['fwd_beta'])]
-                loss = fwd_model_loss*self.config['fwd_beta'] + inverse_model_loss*(1-self.config['fwd_beta'])
-                # Do update step for ICM
-                self.optim_icm.zero_grad()
-                loss.backward()
-                self.optim_icm.step()
+                one_hot_action = torch.zeros((self.config['parallel_envs'], self.num_actions), dtype=torch.float32, device=self.device)#.scatter_(1, next_action, 1)
+                for i in range(self.config['parallel_envs']):
+                    one_hot_action[i, next_action[i]] = 1
+
+                ireward, next_pred_state_features, pred_action_logits, next_state_features = self.curiosity(
+                    one_hot_action, self.process_obs(curr_state), self.process_obs(obs))
+
+                fwd_model_loss = ((next_pred_state_features - next_state_features)**2).mean()
+                inv_model_loss = self.cross_entropy_loss(pred_action_logits, next_action)
+                # self.icm_fwd_loss += [fwd_model_loss.item()*self.config['fwd_beta']]
+                # self.icm_inv_loss += [inverse_model_loss.item()*(1-self.config['fwd_beta'])]
+                self.icm_fwd_loss.append(fwd_model_loss)
+                self.icm_inv_loss.append(inv_model_loss)
+                # loss = fwd_model_loss*self.config['fwd_beta'] + inverse_model_loss*(1-self.config['fwd_beta'])
+
+                # # Do update step for ICM
+                # self.optim_icm.zero_grad()
+                # loss.backward()
+                # # import ipdb; ipdb.set_trace()
+                # self.optim_icm.step()
 
                 # store values from current step
                 rollout.add(next_action, action_log_prob, rewards, value, mask, entropy, ireward)
@@ -150,9 +157,9 @@ class A2C(object):
         for i in iter_range:
             rollout, obs, final_value = self.run_episode(obs)
             if self.config['use_icm']:
-                actions, action_log_probs, values, ex_rewards, masks, entropies, i_rewards = rollout.process()
+                _, action_log_probs, values, ex_rewards, masks, entropies, i_rewards = rollout.process()
             else:
-                actions, action_log_probs, values, ex_rewards, masks, entropies = rollout.process()
+                _, action_log_probs, values, ex_rewards, masks, entropies = rollout.process()
 
             # collecting target for value network
             # V_t <-> r_t + gamma*r_{t+1} + ... + gamma^n*r_{t+n} + gamma^{n+1}*V_{n+1}
@@ -161,7 +168,7 @@ class A2C(object):
             # discount accumulates rewards for each rollout step
             rewards = ex_rewards
             if self.config['use_icm']:
-                rewards += i_rewards*self.config['pred_beta']
+                rewards += i_rewards * self.config['pred_beta']
             discounted_rewards = self.discount(rewards, masks, final_value, gamma)
 
             # values is length n = num rollout_steps
@@ -173,7 +180,10 @@ class A2C(object):
             value_net_loss = (advantages ** 2).mean() * self.config['value_beta']
             entropy = entropies.sum() * self.config['entropy_beta']
 
-            loss = policy_net_loss + value_net_loss - entropy
+            fwd_loss = sum(self.icm_fwd_loss) / len(self.icm_fwd_loss)
+            inv_loss = sum(self.icm_inv_loss) / len(self.icm_inv_loss)
+
+            loss = policy_net_loss + value_net_loss - entropy + (fwd_loss + inv_loss)
 
             # Do Update Step for Model
             self.optim.zero_grad()
@@ -181,6 +191,9 @@ class A2C(object):
             # clip gradients for better stability
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.config['max_grad_norm'])
             self.optim.step()
+
+            self.icm_fwd_loss = []
+            self.icm_inv_loss = []
             
             # =======================================================================================================
             # SAVE CHECKPOINTS
@@ -203,23 +216,23 @@ class A2C(object):
                     self.writer.add_scalar('train/value_loss', value_net_loss.item(), i)
                     self.writer.add_scalar('train/entropy', entropy.item(), i)
                     self.writer.add_scalar('train/ep_max_reward', ep_max_reward, i)
+
                     if self.config['use_icm']:
                         self.writer.add_scalar('train/i_reward',i_rewards.mean().item()*self.config['pred_beta'], i)
                         self.writer.add_scalar('train/ex_reward',ex_rewards.mean().item(), i)
-                        self.writer.add_scalar('train/icm_fwd_loss',sum(self.icm_fwd_loss)/len(self.icm_fwd_loss), i)
-                        self.writer.add_scalar('train/icm_inv_loss',sum(self.icm_inv_loss)/len(self.icm_inv_loss), i)
+                        self.writer.add_scalar('train/icm_fwd_loss',fwd_loss.item(), i)
+                        self.writer.add_scalar('train/icm_inv_loss',inv_loss.item(), i)
 
                 output = "Update {}/{}\n".format(i, self.config['num_updates'])
                 output += "loss: {:.4f}, ".format(loss.item())
                 output += "policy_net_loss: {:.4f}, ".format(policy_net_loss.item())
                 output += "value_net_loss: {:.4f}, ".format(value_net_loss.item())
                 output += "entropy: {:.4f}, ".format(entropy.item())
-                output += "ep_max_reward: {:.4f}\n".format(ep_max_reward)
+                output += "ep_max_reward: {:.4f}, ".format(ep_max_reward)
+
                 if self.config['use_icm']:
                     output += "i_reward: {:.4f}, ".format(i_rewards.mean().item()*self.config['pred_beta'])
-                    output += "ex_reward: {:.4f}, ".format(ex_rewards.mean().item())
-                    output += "icm_fwd_loss: {:.4f}, ".format(sum(self.icm_fwd_loss)/len(self.icm_fwd_loss))
-                    output += "icm_inv_loss: {:.4f}\n".format(sum(self.icm_inv_loss)/len(self.icm_inv_loss))
-                    self.icm_fwd_loss = []
-                    self.icm_inv_loss = []
+                    output += "ex_reward: {:.4f}\n".format(ex_rewards.mean().item())
+                    output += "icm_fwd_loss: {}, ".format(fwd_loss.item())
+                    output += "icm_inv_loss: {}\n".format(inv_loss.item())
                 self.logger.info(output)

@@ -4,10 +4,15 @@ import os
 import argparse
 import torch
 import shutil
+import random
+import numpy as np
+
+import tensorflow as tf
 
 from a2c import A2C
 from tensorboardX import SummaryWriter
 
+from stable_baselines.common import set_global_seeds
 from stable_baselines.common.cmd_util import make_atari_env
 from stable_baselines.common.vec_env import VecFrameStack
 
@@ -38,11 +43,25 @@ def get_logger(config):
 
     return logger
 
+def set_seed(seed):
+    set_global_seeds(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+    tf.compat.v1.set_random_seed(seed)
+
+    torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 def main():
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
+
+    set_seed(42)
 
     writer = None
     # Will ERROR if outdir already exists
