@@ -13,7 +13,7 @@ from tqdm import tqdm
 from stable_baselines.common.vec_env import VecVideoRecorder, DummyVecEnv
 
 video_folder = 'videos/'
-video_length = 10
+video_length = 10 # change for desired video length
 
 parser = argparse.ArgumentParser(description="Curiosity-driven A2C")
 parser.add_argument('--config', default='configs/main.yaml')
@@ -31,12 +31,12 @@ env = VecVideoRecorder(env, video_folder,
 obs = env.reset()
 n = env.action_space.n
 
-model = ActorCritic(n, config)
 device = torch.device('cuda') if config['use_gpu'] else torch.device('cpu')
+model = ActorCritic(n, config).to(device)
 model.load_state_dict(torch.load('checkpoints\pong_noEnt\model_recent_ckpt', map_location=device))
 model.eval()
 
-for i in tqdm(range(video_length+1)):
+for i in tqdm(range(video_length)):
     #env.render(mode='rgb_array')
     tensor = torch.from_numpy(obs.astype(np.float32).transpose((0, 3, 1, 2))) / 255
     tensor = torch.nn.functional.interpolate(tensor, scale_factor=48/tensor.shape[-1])
