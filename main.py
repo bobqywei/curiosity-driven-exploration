@@ -61,7 +61,7 @@ def main():
     with open(args.config) as f:
         config = yaml.safe_load(f)
 
-    set_seed(42)
+    set_seed(config['seed'])
 
     writer = None
     # Will ERROR if outdir already exists

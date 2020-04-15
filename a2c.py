@@ -203,7 +203,8 @@ class A2C(object):
             #     torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_best_ckpt'))
 
             if i % self.config['save_iters'] == 0:
-                torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'model_recent_ckpt'))
+                torch.save(self.actor_critic.state_dict(), os.path.join(self.config['outdir'], 'actor_critic_ckpt_{}'.format(i)))
+                torch.save(self.curiosity.state_dict(), os.path.join(self.config['outdir'], 'icm_ckpt_{}'.format(i)))
 
             # =======================================================================================================
             # LOGGING

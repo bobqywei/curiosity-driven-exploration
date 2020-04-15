@@ -2,14 +2,14 @@ task: "PongNoFrameskip-v0"
 # task: "SeaquestNoFrameskip-v0"
 # task: "BreakoutNoFrameskip-v0"
 
-outdir: "results/Pong_v0_icm"
+outdir: "results/pong-v0-icm"
 
 use_gpu: True
 use_tqdm: False
 use_tensorboard: True
 use_icm: True
 
-seed: 1234
+seed: 42
 parallel_envs: 4
 # number of frames (channels) in raw state input (includes image frames from previous timesteps)
 state_frames: 4
@@ -29,4 +29,4 @@ save_iters: 10000
 
 # ICM
 fwd_beta: 0.2
-pred_beta: 0.1
+pred_beta: 10
