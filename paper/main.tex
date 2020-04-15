@@ -15,7 +15,7 @@
 %     \usepackage[final]{neurips_2020}
 
 % to avoid loading the natbib package, add option nonatbib:
-     \usepackage[nonatbib]{neurips_2020}
+\usepackage[nonatbib]{neurips_2020}
 
 \usepackage[utf8]{inputenc} % allow utf-8 input
 \usepackage[T1]{fontenc}    % use 8-bit T1 fonts
@@ -25,6 +25,7 @@
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
+
 
 \title{Motivating Exploration in Reinforcement Learning}
 
@@ -68,7 +69,7 @@
 
 \section{Introduction}
 
-Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity craving to experience something new, something yet to be seen. Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
+Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity, craving to experience something new, something yet to be seen. Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
 
 And yet, even with the massive computational resources available today, the most impressive artificial learning agents struggle tremendously in balancing explicit exploration of the environment and stable convergence towards a useful, learned policy. Without adequate exploration and randomness, the agent can easily become stuck and converge towards a flawed policy early on in learning; the agent's policy reflects high certainty on its understanding of the environment when, in reality, it has yet to explore the majority of the state space. On the other hand, Excessive exploration can lead to unstable rewards and updates throughout learning which are detrimental to learning a useful policy. To make matters worse, there is a huge breadth of algorithms and hand-crafted techniques used in reinforcement learning, many of them requiring method or task specific hyperparameter tuning. This in turn leads to very specialized formulations across the field for encouraging exploration.
 
@@ -84,19 +85,45 @@ In this section, we present our baseline RL framework using the A2C algorithm wh
 
 \subsection{Advantage Actor-Critic (A2C)}
 Our baseline is built around A2C, which is an on-policy learning algorithm. The core decision making of the agent stems from the policy network ($\pi$), which is also referred to as the \textit{Actor}. The policy network is learned and its weights ($\theta_\pi$) are updated via the standard policy gradient equation, wherein the rewards $r_t$ for a trajectory $t$ are weighted by the negative log likelihood of that trajectory. Minimizing this loss $\mathcal{L}_P$ is equivalent to updating $\pi$ such that the probability of high reward trajectories are maximized.
-\begin{equation}\label{eq:policy}
-\mathcal{L}_{P} = \sum_{t} -\log\pi(s_t; \theta_\pi) r_t
+\begin{equation}
+\mathcal{L}_{P} = \sum_{t} -\log\pi(s_t; \theta_\pi) \times r_t\label{eq:policy}
 \end{equation}
-A2C also uses the value network ($V$) or \textit{critic} which predicts the accumulated, discounted rewards $R_i$ over the episode timesteps $i$. The advantages can be computed as $A_i = R_i - V_i$, where $V_i$ are the predictions from $V$, and are used in place of the actual rewards in the policy update \ref{eq:policy}, reducing the variance of $\mathcal{L}_P$, which is a common downfall of on-policy methods. We train the value network $V$ with the update equation \ref{eq:value}.
-\begin{equation}\label{eq:value}
-\mathcal{L}_v = \frac{1}{n}\sum_i (R_i - V_i)^2
+A2C also uses the value network ($V$) or \textit{critic} which predicts the accumulated, discounted rewards $R_i$ over the episode timesteps $i$. The advantages can be computed as $A_i = R_i - V_i$, where $V_i$ are the predictions from $V$, and are used in place of the actual rewards in the policy update \ref{eq:policy}, reducing the variance of $\mathcal{L}_P$, which is a common downfall of on-policy methods. We train the value network $V$ with update equation \ref{eq:value}.
+\begin{equation}
+\mathcal{L}_V = \frac{1}{n}\sum_i (R_i - V_i)^2\label{eq:value}
 \end{equation}
+The base A2C algorithm does not explicitly seek random exploration as it learns to decide on the action at a https://arxiv.org/pdf/1601.06733.pdf state purely from the policy update. The most commonly used method to introduce randomness to the agent is through maximizing the entropy of the next-action sampling distribution. This distribution is categorical with probabilities defined by the policy network logits.
+\begin{equation}\label{eq:entropy}
+\mathcal{L}_E = \sum_a (-\log \pi_a \times \mu_\pi)
+\end{equation}
+Instead of minizing the loss function in \ref{eq:entropy}, we maximize the value so that the individual probabilities of the sampling distribution $\pi_a$ are as similar as possible; thus, inducing a degree of randomness in the policy network's state to action mapping.
 
-\subsection{Motivating Exploration}
+\subsection{Intrinsic Curiosity}
+Entropy encourages the agent to explore but in a purely random manner, which has been shown to produce exceptional results (as below). However, we also compare with a more targeted approach by leveraging the Intrinsic Curiosity Module (ICM) introduced in \textbf{cite}, which provides an intrinsic reward as a learning signal. ICM consists of two linear networks referred to as the forward and inverse models. The forward model $f_{Fwd}$ is trained to predict the next state ($\phi(s_{t+1})$) given the current state ($\phi(s_t)$) and the action ($a_t$) decided by the policy net. Note that we use $\phi$ to denote a feature extractor network used to encode the raw states.
+\begin{equation}\label{eq:intrinsic}
+r_i = \sum_t (\phi(s_{t+1}) - f_{Fwd}(\phi(s_t);a_t))^2
+\end{equation}
+\begin{equation}\label{eq:reward}
+r = r_e + \beta r_i
+\end{equation}
+The new intrinsic reward $r_i$ is defined as the mean-squared-error of the predicted next state and the actual next state, which is then combined with the extrinsic reward to obtain the total reward used in the policy update \ref{eq:policy}. Thus, our agent learns to maximize the likelihood of following trajectories that maximize the intrinsic reward, which means that the agent is encouraged to enter new, unseen states that $f_{Fwd}$ is unable to predict accurately. The forward model itself is trained using the loss below.
+\begin{equation}\label{eq:forward}
+\mathcal{L}_{Fwd} = \frac{1}{n} \sum_t (\phi(s_{t+1}) - f_{Fwd}(\phi(s_t);a_t))^2
+\end{equation}
+Further, the purpose of the inverse model $f_{Inv}$ is to train the feature extractor $\phi$ to encode observed features from the raw state that are most impacted by the agent's actions. Specifically, the inverse model takes the current and next states and infers the corresponding action taken: $f_{Inv}(\phi(s_t), \phi(s_{t+1})) = \hat{p}$, where $\hat{p}$ is a vector of probabilities for each possible action. This is trained with the following,
+\begin{equation}\label{eq:inverse}
+\mathcal{L}_{Inv} = -\log \Big(\frac{e^{\hat{p}[a_t]}}{\sum_j e^{\hat{p}[j]}}\Big) = -\hat{p}[a_t] + \log\Big(\sum_j e^{\hat{p}[j]}\Big)
+\end{equation}
+The described curiosity model is incorporated into the base A2C model and can be trained jointly:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_P + \lambda_{V}\mathcal{L}_V - \lambda_{E}\mathcal{L}_E + \mathcal{L}_{Fwd} + \mathcal{L}_{Inv}
+\end{equation}
 
 \section{Experiments}
+Below, we provide details on our implementation and setup for training the agent. We also include plots of the smoothed, extrinsic rewards from full episodes throughout the training, where we compare the effectiveness of motivating random or targeted exploration. Finally, we show some qualitative results across various environments that demonstrate interesting agent behaviour.
 
 \subsection{Implementation Details}
+
 
 \subsection{Quantitative Results}
 
