@@ -44,7 +44,7 @@
   Bob Wei\\
   Department of Computer Science\\
   University of Waterloo\\
-  \texttt{q25wei@edu.uwaterloo.ca} \\
+  \texttt{q25wei@uwaterloo.ca} \\
   % examples of more authors
   \And
   Akshay Patel \\
@@ -94,7 +94,7 @@ Our baseline is built around A2C, which is an on-policy learning algorithm. The 
 \begin{equation}
 \mathcal{L}_{P} = \sum_{t} -\log\pi(s_t; \theta_\pi) \times r_t\label{eq:policy}
 \end{equation}
-A2C also uses the value network ($V$) or \textit{critic} which predicts the accumulated, discounted rewards $R_i$ over the episode timesteps $i$. The advantages can be computed as $A_i = R_i - V_i$, where $V_i$ are the predictions from $V$, and are used in place of the actual rewards in the policy update \ref{eq:policy}, reducing the variance of $\mathcal{L}_P$, which is a common downfall of on-policy methods. We train the value network $V$ with update equation \ref{eq:value}.
+A2C also uses the value network ($V$) or \textit{critic} which predicts the accumulated, discounted rewards $R_i$ over the episode timesteps $i$. The advantages can be computed as $A_i = R_i - V_i$, where $V_i$ are the predictions from $V$, and are used in place of the actual rewards in the policy update Eq. \ref{eq:policy}, reducing the variance of $\mathcal{L}_P$, which is a common downfall of on-policy methods. We train the value network $V$ with update Eq. \ref{eq:value}.
 \begin{equation}
 \mathcal{L}_V = \frac{1}{n}\sum_i (R_i - V_i)^2\label{eq:value}
 \end{equation}
@@ -102,7 +102,7 @@ The base A2C algorithm does not explicitly seek random exploration as it learns 
 \begin{equation}\label{eq:entropy}
 \mathcal{L}_E = \sum_a (-\log \pi_a \times \mu_\pi)
 \end{equation}
-Instead of minizing the loss function in \ref{eq:entropy}, we maximize the value so that the individual probabilities of the sampling distribution $\pi_a$ are as similar as possible; thus, inducing a degree of randomness in the policy network's state to action mapping.
+Instead of minizing the loss function in Eq. \ref{eq:entropy}, we maximize the value so that the individual probabilities of the sampling distribution $\pi_a$ are as similar as possible; thus, inducing a degree of randomness in the policy network's state to action mapping.
 
 \subsection{Intrinsic Curiosity}
 Entropy encourages the agent to explore but in a purely random manner, which has been shown to produce exceptional results (refer to experiments). However, we also compare with a more targeted approach by leveraging the Intrinsic Curiosity Module (ICM) introduced in \cite{curiosity}, which provides an intrinsic reward as a learning signal. ICM consists of two linear networks referred to as the forward and inverse models. The forward model $f_{Fwd}$ is trained to predict the next state ($\phi(s_{t+1})$) given the current state ($\phi(s_t)$) and the action ($a_t$) decided by the policy net. Note that we use $\phi$ to denote a feature extractor network used to encode the raw states.
@@ -112,7 +112,7 @@ r_i = \sum_t (\phi(s_{t+1}) - f_{Fwd}(\phi(s_t);a_t))^2
 \begin{equation}\label{eq:reward}
 r = r_e + \beta r_i
 \end{equation}
-The new intrinsic reward $r_i$ is defined as the mean-squared-error of the predicted next state and the actual next state, which is then combined with the extrinsic reward to obtain the total reward used in the policy update \ref{eq:policy}. Thus, our agent learns to maximize the likelihood of following trajectories that maximize the intrinsic reward, which means that the agent is encouraged to enter new, unseen states that $f_{Fwd}$ is unable to predict accurately. The forward model itself is trained using the loss below.
+The new intrinsic reward $r_i$ is defined as the mean-squared-error of the predicted next state and the actual next state, which is then combined with the extrinsic reward to obtain the total reward used in the policy update Eq. \ref{eq:policy}. Thus, our agent learns to maximize the likelihood of following trajectories that maximize the intrinsic reward, which means that the agent is encouraged to enter new, unseen states that $f_{Fwd}$ is unable to predict accurately. The forward model itself is trained using the loss below.
 \begin{equation}\label{eq:forward}
 \mathcal{L}_{Fwd} = \frac{1}{n} \sum_t (\phi(s_{t+1}) - f_{Fwd}(\phi(s_t);a_t))^2
 \end{equation}
@@ -145,15 +145,24 @@ Here, we show our training results in the three environments: \texttt{Pong}, \te
   \item \textbf{A2C + Entropy + Curiosity}: A2C with ICM and entropy to encourage exploration of novel states
 \end{itemize}
 \end{small}
+Note that in the interest of time, we were unable to perform hyper-parameter tuning for any of our baselines and so the results here are not comparable to other works with finely tuned agents. We emphasize the relative performance of the three A2C variants across the three environments, and so we also use the same seed across the board.
 
 \subsubsection{Sparse Extrinsic Reward}
-\begin{figure}[ht]\label{fig:pong-reward}
+\begin{figure}
   \centering
   \includegraphics[width=0.6\textwidth]{figures/pong_rewards}
-  \caption{Sample figure caption.}
+  \caption{We compare the three variants of A2C here, with the curious learner (cyan) vastly outperforming the baseline A2C (red) and the random entropy-based learner (yellow). The extrinsic reward is total cumulative reward over a full episode.}
+  \label{fig:pong-reward}
 \end{figure}
 
-\newpage
+Relative to the other environments we tested in, \texttt{Pong} provides a much sparser extrinsic reward signal as a positive reward is provided only when the agent is able to score a point, which is a large hurdle during early training. So, in the beginning, much is dependent on the negative reward signal provided only each time the agent allows a point. Most environment steps, in fact, provide a zero reward and so the addition of an intrinsic reward (as with ICM) will become the dominant learning signal, pushing the agent to explore unfamiliar states.
+
+As shown in Fig. \ref{fig:pong-reward}, the curiosity-driven learner trains much faster than the entropy-based learner, which can be explained by the difference in the style of exploration. ICM provides a direct learning signal to the model that encourages the policy to map to actions that are more likely to enter novel, unseen states. In contrast, the entropy term aims to distribute the output probabilities over the next-actions in the policy output space as evenly as possible, preventing the agent from becoming stuck but does so by encouraging the actor to select random actions at times. This difference perhaps explains the higher potential of the curious model, in that it is able to reach higher cumulative rewards that are highly improbable for the entropy-based model.
+
+Note that the cumulative reward in \texttt{Pong} is the the agent's score minus the cpu's score, and the episode ends when either reaches a score of $21$. Thus, the only possible values for cumulative reward are integers between $-21$ and $21$. However, a score of $21$ means that the agent did not allow a single point, and so higher rewards are progressively more and more difficult to reach. This explains the plateauing of model performance at higher rewards, and perhaps also the entropy-based learner's sudden drop near the end of training.
+
+Looking at the baseline A2C model (red in Fig. \ref{fig:pong-reward}), performance is poor due to the fact that the agent has no exploration factor; thus, it tends to get stuck in states where the policy action is to remain in a similar state. This can be seen in the portions of the learning curve where performance collapses and remains stuck for some time.
+
 \subsubsection{Dense Extrinsic Reward}
 \begin{figure}[ht]
 \centering
@@ -165,9 +174,15 @@ Here, we show our training results in the three environments: \texttt{Pong}, \te
   \centering
   \includegraphics[width=1.\linewidth]{figures/pong_rewards}
 \end{subfigure}
-\caption{A figure with two subfigures}
+\caption{Here we compare the three A2C variants in the \texttt{Breakout} (left) and \texttt{Seaquest} (right) environments. Rewards are again cumulative over an entire episode.}
 \label{fig:seaquest-breakout-reward}
 \end{figure}
+
+We refer to \texttt{Breakout} and \texttt{Seaquest} as our dense reward environments. Specifically, \texttt{Seaquest} is most dense in that positive rewards are given for each \"kill\", which occurs very frequently due to the sheer number of enemies and the fact that the player's submarine is always firing projectiles at high velocity. In fact, positive rewards are already obtained in the early steps of training (as can be seen in Fig. \ref{fig:seaquest-breakout-reward}). \texttt{Breakout} provides a slightly sparser reward but is still denser than that of \texttt{Pong}; rewards are given for each brick broken which occurs every time the agent is able to return the ball. This means that in early training, when the agent is unable to consistently return the ball, there is no reward signal and so training performance is heavily dependent on an exploration factor.
+
+We note that curiosity related hyper-parameters were not tuned at all for these environments and so the ICM performance remains an area of improvement, particularly in the variance of the intrinsic rewards. This may be the reasoning for the poor performance of the curious learner compared to the entropy-based learner and we hope to address this in future work. It can also be said that the benefits of an intrinsic curiosity-driven reward in environments with dense extrinsic rewards are not as substantial as in sparse reward environments, where the agent often depends on the intrinsic reward as the only learning signal.
+
+Further, the baseline A2C models perform very poorly in these environments, as they again tend to get stuck in certain states (this behaviour can be seen later in the qualitative results). This leads to sudden mode collapse as in the \texttt{Seaquest} environment and an inability to reach further than a score of 10 in \texttt{Breakout} (sharp plateau in reward learning curve). However, relative to the performance in the sparse \texttt{Pong} environment, the baseline A2C model seems to fare better in these dense reward environments thanks to the consistent learning signal.
 
 \subsection{Qualitative Results}
 
