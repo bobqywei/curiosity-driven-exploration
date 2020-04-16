@@ -43,6 +43,7 @@ def get_logger(config):
 
     return logger
 
+# sets the seed for pseudorandom generators
 def set_seed(seed):
     set_global_seeds(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -78,11 +79,14 @@ def main():
 
     logger = get_logger(config)
 
+    # create environment
     env = make_atari_env(config['task'], num_env=config['parallel_envs'], seed=config['seed'])
     env = VecFrameStack(env, n_stack=config['state_frames'])
 
+    # default device for torch tensors
     device = torch.device('cuda') if config['use_gpu'] else torch.device('cpu')
 
+    # start training
     a2c = A2C(config, env, device, logger, writer)
     a2c.train()
 

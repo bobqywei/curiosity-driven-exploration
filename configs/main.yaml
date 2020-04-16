@@ -2,12 +2,12 @@ task: "PongNoFrameskip-v0"
 # task: "SeaquestNoFrameskip-v0"
 # task: "BreakoutNoFrameskip-v0"
 
-outdir: "results/pong-v0-icm"
+outdir: "results/pong_no_entropy"
 
 use_gpu: True
 use_tqdm: False
 use_tensorboard: True
-use_icm: True
+use_icm: False
 
 seed: 42
 parallel_envs: 4
@@ -20,6 +20,7 @@ max_grad_norm: 0.5
 
 # discount factor
 gamma: 0.99
+
 # loss terms weighting
 value_beta: 0.5
 entropy_beta: 0.02
