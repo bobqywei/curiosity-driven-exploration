@@ -168,11 +168,11 @@ Looking at the baseline A2C model (red in Fig. \ref{fig:pong-reward}), performan
 \centering
 \begin{subfigure}{.5\textwidth}
   \centering
-  \includegraphics[width=1.\linewidth]{figures/pong_rewards}
+  \includegraphics[width=1.\linewidth]{figures/breakout_rewards}
 \end{subfigure}%
 \begin{subfigure}{.5\textwidth}
   \centering
-  \includegraphics[width=1.\linewidth]{figures/pong_rewards}
+  \includegraphics[width=1.\linewidth]{figures/seaquest_rewards}
 \end{subfigure}
 \caption{Here we compare the three A2C variants in the \texttt{Breakout} (left) and \texttt{Seaquest} (right) environments. Rewards are again cumulative over an entire episode.}
 \label{fig:seaquest-breakout-reward}
@@ -260,7 +260,7 @@ Even with the massive computational resources available today, artificial agents
 
 As discussed in the results section above, the curiosity-driven (ICM) agents in \texttt{Pong} learn and train much faster than the entropy-based agents, which was explained by the difference in the style of exploration. Moreover, the baseline A2C model with no exploration performed poorly due to the fact that the agent was not exploring at all. With regards to \texttt{Breakout} and \texttt{Seaquest}, particularly dense reward environments, the ICM performance remains an area of improvement through hyper-parameter tuning. The baseline A2C models perform poorly in these environments as discussed previously, but they perform better in these environments relative to sparse reward environments like \texttt{Pong}. Our results show that exploration factors applied to baseline algorithms can improve model performance and decrease training time through intrinsic reward signals. In particular, exploration is crucial across sparse reward environments, which we wanted to verify and which is backed by our results.
 
-The limitations we faced in our work were mostly related to time available to complete this work. With more time, we would have liked to train all of  our agents for longer periods of time until convergence. Moreover, we would prefer to have done more experiments with more time to observe the quantitative effects of hyperparameter tuning for specific environments such as \texttt{Breakout} and \texttt{Seaquest} and agents with intrinsic curiosity (ICM) since we were unable to do so in the time we had. 
+The limitations we faced in our work were mostly related to time available to complete this work. With more time, we would have liked to train all of  our agents for longer periods of time until convergence. Moreover, we would prefer to have done more experiments with more time to observe the quantitative effects of hyperparameter tuning for specific environments such as \texttt{Breakout} and \texttt{Seaquest} and agents with intrinsic curiosity (ICM) since we were unable to do so in the time we had.
 
 In the future, we would like to diversify the environments investigated in this paper. \texttt{Pong}, \texttt{Breakout}, and \texttt{Seaquest} are all Atari games where the states and frames of the game do not change drastically from one state to another. This could perhaps be a factor affecting the ICM due to the fact that novelty in states for curiosity is defined by the change in its features. Through more experiments in a diversified set of environments including environments with more distinct states, additional insights about the effect of exploration and curiosity might be revealed.
 
