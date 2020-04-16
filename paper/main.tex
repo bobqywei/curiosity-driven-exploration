@@ -185,6 +185,35 @@ We note that curiosity related hyper-parameters were not tuned at all for these 
 Further, the baseline A2C models perform very poorly in these environments, as they again tend to get stuck in certain states (this behaviour can be seen later in the qualitative results). This leads to sudden mode collapse as in the \texttt{Seaquest} environment and an inability to reach further than a score of 10 in \texttt{Breakout} (sharp plateau in reward learning curve). However, relative to the performance in the sparse \texttt{Pong} environment, the baseline A2C model seems to fare better in these dense reward environments thanks to the consistent learning signal.
 
 \subsection{Qualitative Results}
+Qualitative Results
+
+For each trained environment, two agents were trained to investigate the effects of exploration. One artificial agent would be trained without exploration and the other would be trained with exploration. Videos of the agents playing the game in the environment were generated, and through these videos, qualitative observations are made with regards to the effects of exploration, and any interesting behaviours that are seen in the agents that leverage exploration.
+
+Qualitative Effects of Exploration
+
+Pong
+
+With regards to Pong, the environment with the sparsest rewards from the three that are investigated in this paper, both agents without and with exploration respectively still make use of movement of the paddle to maximize cumulative reward as can be seen in the figures above. However, the agent with exploration noticeably has a much higher rate of movement compared to the agent without exploration, which could lead to more states of the environment being explored. The agent with exploration often makes many movements that are much faster than the agent without exploration, as can be observed in the supplementary videos.
+
+Breakout
+
+With regards to Breakout, the environment out of the three investigated in this paper with a higher reward density than Pong but a lower reward density than Seaquest, there is a very noticeable difference in the behaviour of the two agents. The agent without exploration tends to move to the rightmost corner, and simply stay there for most of the game’s duration as can be seen in the figure above. The agent with exploration makes movements all across the screen in order to maximize cumulative reward, and intuitively, explores its environment much more than the agent without exploration. This is a very distinct difference in behaviour that can be clearly observed, especially in the supplementary videos provided.
+
+Seaquest
+
+With regards to Seaquest, the environment with the highest reward density, there is also a very noticeable difference in the behaviour of the agents. This difference between the two agents is the same as the difference noticed in the agents of Breakout. The agent without exploration in Seaquest does not explore its environment at all, and instead opts to stay above sea level at the top left corner. This behaviour is quite unique because it completely avoids any negative rewards in the environment caused by the fish attacking the agent or due to oxygen loss. On the other hand, the agent with exploration makes movements to fully explore the environment to maximize reward while taking the risk of negative rewards as well.
+
+The differences in behaviour noticed in the agents with and without exploration of both Breakout and Seaquest could perhaps be explained by the lack of maximizing the entropy of the next-action sampling distribution in the agent without exploration. Without this maximization of entropy of the next-action sampling distribution, there is no degree of randomness in the policy network’s state to action mapping. In turn, the lack of randomness may be causing a collapse in the explorative behaviour due to some, perhaps static, actions having a very high probability defined by the policy network logits.
+
+Interesting Behaviours
+
+Along with the differences observed in the agents with and without exploration, there are also interesting behaviours observed in the agents with exploration with regards to how they interact with their respective environments. These can be seen in the supplementary videos provided.
+
+In Pong, it is observed that the agent waits for the ball for a bit, and then rapidly moves towards the ball to hit it with the edge of the paddle in order to launch the ball quickly off of the paddle with a high velocity. Perhaps this is a strategy used by the agent to cause a rapid change in velocity that causes the opponent to be unable to catch it in time due to slower reaction speeds. 
+
+In Breakout, it is observed that the agent tends to hit the ball from the rightmost corner if it can. This might be a strategy used to break apart the bricks at the top left corner in order to push the ball on top of the bricks, and consequently destroy many more bricks from above in order to accumulate much higher rewards.
+
+In Seaquest, it is observed that the agent takes into consideration the oxygen bar, which is a purely visual indicator. The agent decides the next actions based on their oxygen remaining as well, opting to return to the surface of the water to regain oxygen in order to further extend the opportunity to accumulate more rewards.
 
 \section{Discussion}
 
