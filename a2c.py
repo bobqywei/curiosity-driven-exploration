@@ -177,8 +177,11 @@ class A2C(object):
             value_net_loss = (advantages ** 2).mean() * self.config['value_beta']
             entropy = entropies.sum() * self.config['entropy_beta']
 
-            fwd_loss = sum(self.icm_fwd_loss) / len(self.icm_fwd_loss) # mean over list
-            inv_loss = sum(self.icm_inv_loss) / len(self.icm_inv_loss) # mean over list
+            if self.config['use_icm']:
+                fwd_loss = sum(self.icm_fwd_loss) / len(self.icm_fwd_loss) # mean over list
+                inv_loss = sum(self.icm_inv_loss) / len(self.icm_inv_loss) # mean over list
+                self.icm_fwd_loss = []
+                self.icm_inv_loss = []
 
             loss = policy_net_loss + value_net_loss - entropy + (fwd_loss + inv_loss)
 
@@ -188,9 +191,6 @@ class A2C(object):
             # clip gradients for better stability
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.config['max_grad_norm'])
             self.optim.step()
-
-            self.icm_fwd_loss = []
-            self.icm_inv_loss = []
             
             # =======================================================================================================
             # SAVE CHECKPOINTS
