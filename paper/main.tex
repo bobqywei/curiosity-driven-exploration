@@ -25,6 +25,9 @@
 \usepackage{amsfonts}       % blackboard math symbols
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
 
 
 \title{Motivating Exploration in Reinforcement Learning}
@@ -60,11 +63,7 @@
 \maketitle
 
 \begin{abstract}
-  The abstract paragraph should be indented \nicefrac{1}{2}~inch (3~picas) on
-  both the left- and right-hand margins. Use 10~point type, with a vertical
-  spacing (leading) of 11~points.  The word \textbf{Abstract} must be centered,
-  bold, and in point size 12. Two line spaces precede the abstract. The abstract
-  must be limited to one paragraph.
+Self-motivation and curiosity come second nature to humans, both of which are crucial in quickly adapting to new environments and achieving distant goals. Using this as inspiration for artificial agents trained with reinforcement learning, we present an analysis of different techniques used by the current state-of-the-art to encourage exploration in varying environments. Specifically, we focus on formulations for entropy and curiosity, which promote exploration via randomness and state-based novelty respectively. We show that such methods are invariant to task/environment specifics, such as the reward density, and we also demonstrate that curious learners train faster based on extrinsic rewards and game visualizations.
 \end{abstract}
 
 \section{Introduction}
@@ -73,22 +72,22 @@ Exploration is something that comes naturally to humans, almost as if there exis
 
 And yet, even with the massive computational resources available today, the most impressive artificial learning agents struggle tremendously in balancing explicit exploration of the environment and stable convergence towards a useful, learned policy. Without adequate exploration and randomness, the agent can easily become stuck and converge towards a flawed policy early on in learning; the agent's policy reflects high certainty on its understanding of the environment when, in reality, it has yet to explore the majority of the state space. On the other hand, Excessive exploration can lead to unstable rewards and updates throughout learning which are detrimental to learning a useful policy. To make matters worse, there is a huge breadth of algorithms and hand-crafted techniques used in reinforcement learning, many of them requiring method or task specific hyperparameter tuning. This in turn leads to very specialized formulations across the field for encouraging exploration.
 
-In this work, we explore a general formulation of curiosity that aims to motivate exploration in reinforcement learning (RL) agents while remaining invariant to the algorithm and task in question. We explore the effects of including an entropy term (of the policy action probability distribution) and a curiosity module based on that of \textbf{cite}, which provides an intrinsic reward signal. Due to the scope of the porject, we focus specifically on the Advantage Actor-Critic (A2C) RL algorithm in the \textit{Pong}, \textit{Seaquest}, and \textit{Breakout} Atari environments. These tasks were chosen due to the differences in mechanics and their respective state spaces, specifically the density and magnitude of the extrinsic reward (i.e. reward received from environment itself).
+In this work, we explore a general formulation of curiosity that aims to motivate exploration in reinforcement learning (RL) agents while remaining invariant to the algorithm and task in question. We explore the effects of including an entropy term (of the policy action probability distribution) and a curiosity module based on that of \cite{curiosity}, which provides an intrinsic reward signal. Due to the scope of the porject, we focus specifically on the Advantage Actor-Critic (A2C) RL algorithm in the \textit{Pong}, \textit{Seaquest}, and \textit{Breakout} Atari environments. These tasks were chosen due to the differences in mechanics and their respective state spaces, specifically the density and magnitude of the extrinsic reward (i.e. reward received from environment itself).
 
 We compare the performance of the agent in the various environments with and without the mentioned exploration factors. \textbf{Add more on the experimental results once that's finalized}
 
 \section{Related Work}
-Our artificial agent is a model-free, on-policy reinforcement learning algorithm that leverages Advantage Actor Critic (A2C) methods, entropy-based exploration methods, and curiosity-driven exploration methods. Our artificial agent uses combination(s) of these methods to learn how to navigate different OpenAI Gym (cite?) environments to maximize cumulative rewards.
+Our artificial agent is a model-free, on-policy reinforcement learning algorithm that leverages Advantage Actor Critic (A2C) methods, entropy-based exploration methods, and curiosity-driven exploration methods. Our artificial agent uses combination(s) of these methods to learn how to navigate different OpenAI Gym \cite{gym} environments to maximize cumulative rewards.
 
-Actor Critic methods have been successfully applied to a variety of reinforcement learning problems, with Advantage Actor Critic methods also being used after their introduction in 2016 through Schulman et al.’s work, High Dimensional Continuous Control Using Generalized Advantage Estimation, done at the University of California, Berkeley. Schulman et al.’s work presents the Advantage Actor Critic method that our artificial agent primarily leverages to learn how to maximize cumulative rewards in a variety of environments. Schulman et al. address two main challenges faced by policy gradient methods in reinforcement learning, namely the large number of samples usually required and the difficulty of gaining consistent improvement with nonstationarity of the data [cite].
+Actor Critic methods have been successfully applied to a variety of reinforcement learning problems, with Advantage Actor Critic methods also being used after their introduction in 2016 through Schulman et al.’s work, High Dimensional Continuous Control Using Generalized Advantage Estimation, done at the University of California, Berkeley. Schulman et al.’s work presents the Advantage Actor Critic method that our artificial agent primarily leverages to learn how to maximize cumulative rewards in a variety of environments \cite{a2c}. Schulman et al. address two main challenges faced by policy gradient methods in reinforcement learning, namely the large number of samples usually required and the difficulty of gaining consistent improvement with nonstationarity of the data \cite{a2c}.
 
-Curiosity-driven exploration enhancements to A2C methods have also recently been applied to a set of reinforcement learning algorithms after their introduction in 2017 through Pathak et al.’s work, Curiosity-driven Exploration by Self-supervised Prediction, which was also done at the University of California, Berkeley. Pathak et al.’s work presents the curiosity-driven exploration method that our artificial agent uses, namely the Intrinsic Curiosity Module (ICM). Pathak et al.’s work addresses a challenge faced in learning when extrinsic rewards for the agent are extremely sparse through curiosity as the error in an agent’s ability to to predict the consequence of its own actions [cite]. Their proposed ICM notably ignores the aspects of the environment that do not affect the agent, as well as being able to scale to high-dimensional continuous state spaces such as images, and bypasses the difficulties of directly predicting pixels [cite].
+Curiosity-driven exploration enhancements to A2C methods have also recently been applied to a set of reinforcement learning algorithms after their introduction in 2017 through Pathak et al.’s work, Curiosity-driven Exploration by Self-supervised Prediction, which was also done at the University of California, Berkeley. Pathak et al.’s work presents the curiosity-driven exploration method that our artificial agent uses, namely the Intrinsic Curiosity Module (ICM). Pathak et al.’s work addresses a challenge faced in learning when extrinsic rewards for the agent are extremely sparse through curiosity as the error in an agent’s ability to to predict the consequence of its own actions \cite{curiosity}. Their proposed ICM notably ignores the aspects of the environment that do not affect the agent, as well as being able to scale to high-dimensional continuous state spaces such as images, and bypasses the difficulties of directly predicting pixels \cite{curiosity}.
 
-Attention based enhancements to deep learning algorithms have also been used to solve reinforcement learning problems more efficiently. Reizinger et al.’s work, Attention-Based Curiosity-Driven Exploration In Deep Reinforcement Learning, done at the Budapest University of Technology and Economics, introduces an attention-based enhancement to A2C [cite].
+Attention based enhancements to deep learning algorithms have also been used to solve reinforcement learning problems more efficiently. Reizinger et al.’s work, Attention-Based Curiosity-Driven Exploration In Deep Reinforcement Learning, done at the Budapest University of Technology and Economics, introduces an attention-based enhancement to A2C \cite{budapest}.
 
 
 \section{Methods}
-In this section, we present our baseline RL framework using the A2C algorithm which is based on the previous works of \textbf{cite}. We then describe the formulations of entropy and curiosity based learning factors to encourage environment exploration.
+In this section, we present our baseline RL framework using the A2C algorithm which is based on the previous works of \cite{a2c}. We then describe the formulations of entropy and curiosity based learning factors to encourage environment exploration.
 
 \subsection{Advantage Actor-Critic (A2C)}
 Our baseline is built around A2C, which is an on-policy learning algorithm. The core decision making of the agent stems from the policy network ($\pi$), which is also referred to as the \textit{Actor}. The policy network is learned and its weights ($\theta_\pi$) are updated via the standard policy gradient equation, wherein the rewards $r_t$ for a trajectory $t$ are weighted by the negative log likelihood of that trajectory. Minimizing this loss $\mathcal{L}_P$ is equivalent to updating $\pi$ such that the probability of high reward trajectories are maximized.
@@ -106,7 +105,7 @@ The base A2C algorithm does not explicitly seek random exploration as it learns 
 Instead of minizing the loss function in \ref{eq:entropy}, we maximize the value so that the individual probabilities of the sampling distribution $\pi_a$ are as similar as possible; thus, inducing a degree of randomness in the policy network's state to action mapping.
 
 \subsection{Intrinsic Curiosity}
-Entropy encourages the agent to explore but in a purely random manner, which has been shown to produce exceptional results (as below). However, we also compare with a more targeted approach by leveraging the Intrinsic Curiosity Module (ICM) introduced in \textbf{cite}, which provides an intrinsic reward as a learning signal. ICM consists of two linear networks referred to as the forward and inverse models. The forward model $f_{Fwd}$ is trained to predict the next state ($\phi(s_{t+1})$) given the current state ($\phi(s_t)$) and the action ($a_t$) decided by the policy net. Note that we use $\phi$ to denote a feature extractor network used to encode the raw states.
+Entropy encourages the agent to explore but in a purely random manner, which has been shown to produce exceptional results (refer to experiments). However, we also compare with a more targeted approach by leveraging the Intrinsic Curiosity Module (ICM) introduced in \cite{curiosity}, which provides an intrinsic reward as a learning signal. ICM consists of two linear networks referred to as the forward and inverse models. The forward model $f_{Fwd}$ is trained to predict the next state ($\phi(s_{t+1})$) given the current state ($\phi(s_t)$) and the action ($a_t$) decided by the policy net. Note that we use $\phi$ to denote a feature extractor network used to encode the raw states.
 \begin{equation}\label{eq:intrinsic}
 r_i = \sum_t (\phi(s_{t+1}) - f_{Fwd}(\phi(s_t);a_t))^2
 \end{equation}
@@ -131,40 +130,50 @@ where we use $\lambda_V=0.5$ and $\lambda_E=0.02$.
 Below, we provide details on our implementation and setup for training the agent. We also include plots of the smoothed, extrinsic rewards from full episodes throughout the training, where we compare the effectiveness of motivating random or targeted exploration. Finally, we show some qualitative results across various environments that demonstrate interesting agent behaviour.
 
 \subsection{Implementation Details}
-Our work is implemented in Pytorch and we iterate our agents in the Atari environments provided through OpenAI Gym \textbf{cite}, namely \texttt{PongNoFrameskip-v0}, \texttt{SeaquestNoFrameskip-v0}, and \texttt{BreakoutNoFrameskip-v0} (using consistent random seeds for each of the environments). Specifically, we train using 4 parallel environments at a time and with each state consisting of the current frame concatenated with 3 previous frames. We use the Adam optimizer \textbf{cite} with a learning rate of 0.0001, a rollout size of 5, and a varying number of update steps (due to the limited scope of the project). All of our models are trained synchronously on Nvidia GTX 1080Ti (11GB VRAM) and Tesla V100 (16GB VRAM) gpus with batch size equivalent to the number of parallel environments.
+Our work is implemented in Pytorch and we iterate our agents in the Atari environments provided through OpenAI Gym \cite{ppo, gym}, namely \texttt{PongNoFrameskip-v0}, \texttt{SeaquestNoFrameskip-v0}, and \texttt{BreakoutNoFrameskip-v0} (using consistent random seeds for each of the environments). Specifically, we train using 4 parallel environments at a time and with each state consisting of the current frame concatenated with 3 previous frames. We use the Adam optimizer \cite{adam} with a learning rate of 0.0001, a rollout size of 5, and a varying number of update steps (due to the limited scope of the project). All of our models are trained synchronously on Nvidia GTX 1080Ti (11GB VRAM) and Tesla V100 (16GB VRAM) gpus with batch size equivalent to the number of parallel environments.
 
-The main actor-critic network consists of a feature extractor, followed by the actor and critic headers, which are simply single linear layers that map the extracted features to the desired next-action logits and predicted discounted rewards respectively. The feature extractor consists of four stride-2 convolutional layers followed by a LSTM layer \textbf{cite}, which is needed to leverage past information. We note that the LSTM memory is cleared at the end of every episode. The encoded features are flattened to $B\times 288$ tensors before being forwarded to the actor-critic. The initial state is resized to a $48\times 48$ image before being passed to the feature extractor.
+The main actor-critic network consists of a feature extractor, followed by the actor and critic headers, which are simply single linear layers that map the extracted features to the desired next-action logits and predicted discounted rewards respectively. The feature extractor consists of four stride-2 convolutional layers followed by a LSTM layer \cite{lstm}, which is needed to leverage past information. We note that the LSTM memory is cleared at the end of every episode. The encoded features are flattened to $B\times 288$ tensors before being forwarded to the actor-critic. The initial state is resized to a $48\times 48$ image before being passed to the feature extractor.
 
 The curiosity module being used consists of a forward and inverse model as well as another feature extractor net (this one being purely convolutional). Both forward and inverse models are simple multi-layer perceptrons comprised of two stacked linear layers with 288 hidden neurons.
 
 \subsection{Quantitative Results}
+Here, we show our training results in the three environments: \texttt{Pong}, \texttt{Seaquest}, and \texttt{Breakout}. Specifically, we plot the extrinsic reward (objective measure of agent performance) as training progresses for three different variants of A2C:
+\begin{small}
+\begin{itemize}
+  \item \textbf{A2C}: baseline A2C algorithm without entropy term
+  \item \textbf{A2C + Entropy}: A2C with entropy term to encourage randomized exploration
+  \item \textbf{A2C + Entropy + Curiosity}: A2C with ICM and entropy to encourage exploration of novel states
+\end{itemize}
+\end{small}
+
+\subsubsection{Sparse Extrinsic Reward}
 \begin{figure}[ht]\label{fig:pong-reward}
   \centering
-  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+  \includegraphics[width=0.6\textwidth]{figures/pong_rewards}
   \caption{Sample figure caption.}
+\end{figure}
+
+\newpage
+\subsubsection{Dense Extrinsic Reward}
+\begin{figure}[ht]
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=1.\linewidth]{figures/pong_rewards}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=1.\linewidth]{figures/pong_rewards}
+\end{subfigure}
+\caption{A figure with two subfigures}
+\label{fig:seaquest-breakout-reward}
 \end{figure}
 
 \subsection{Qualitative Results}
 
 \section{Discussion}
 
-\section*{References}
-
-\medskip
-
-\small
-
-[1] Alexander, J.A.\ \& Mozer, M.C.\ (1995) Template-based algorithms for
-connectionist rule extraction. In G.\ Tesauro, D.S.\ Touretzky and T.K.\ Leen
-(eds.), {\it Advances in Neural Information Processing Systems 7},
-pp.\ 609--616. Cambridge, MA: MIT Press.
-
-[2] Bower, J.M.\ \& Beeman, D.\ (1995) {\it The Book of GENESIS: Exploring
-  Realistic Neural Models with the GEneral NEural SImulation System.}  New York:
-TELOS/Springer--Verlag.
-
-[3] Hasselmo, M.E., Schnell, E.\ \& Barkai, E.\ (1995) Dynamics of learning and
-recall at excitatory recurrent synapses and cholinergic modulation in rat
-hippocampal region CA3. {\it Journal of Neuroscience} {\bf 15}(7):5249-5262.
+\bibliography{main}
+\bibliographystyle{ieeetr}
 
 \end{document}

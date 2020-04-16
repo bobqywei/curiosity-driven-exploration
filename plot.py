@@ -27,7 +27,7 @@ for path in args.paths:
     data.append((df.Step.values[1:].astype(int), df.Value.values[1:].astype(float)))
 
 colours = ['r', 'y', 'c']
-labels = ['A2C w/o Entropy', 'A2C', 'A2C w/ Curiosity']
+labels = ['A2C', 'A2C + Entropy', 'A2C + Entropy + Curiosity']
 i = 0
 for d in data:
     plt.plot(d[0], d[1], alpha=0.2, color=colours[i])
