@@ -55,7 +55,7 @@
   Samir Alazzam \\
   Department of Computer Science\\
   University of Waterloo\\
-  \texttt{q25wei@edu.uwaterloo.ca} \\
+  \texttt{salazzam@uwaterloo.ca} \\
 }
 
 \begin{document}
@@ -68,7 +68,7 @@ Self-motivation and curiosity come second nature to humans, both of which are cr
 
 \section{Introduction}
 
-Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity, craving to experience something new, something yet to be seen. Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
+Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity, craving to experience something new, something yet to be seen. Jean Piaget, a Swiss developmental psychologist, asserted that it is in human nature to be curious, inquisitive, and interested in novelty as they develop and acquire knowledge about their environment \cite{piaget}.Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
 
 And yet, even with the massive computational resources available today, the most impressive artificial learning agents struggle tremendously in balancing explicit exploration of the environment and stable convergence towards a useful, learned policy. Without adequate exploration and randomness, the agent can easily become stuck and converge towards a flawed policy early on in learning; the agent's policy reflects high certainty on its understanding of the environment when, in reality, it has yet to explore the majority of the state space. On the other hand, excessive exploration can lead to unstable rewards and updates throughout learning which are detrimental to learning a useful policy. To make matters worse, there is a huge breadth of algorithms and hand-crafted techniques used in reinforcement learning, many of them requiring method or task specific hyperparameter tuning. This in turn leads to very specialized formulations across the field for encouraging exploration.
 
@@ -178,7 +178,7 @@ Looking at the baseline A2C model (red in Fig. \ref{fig:pong-reward}), performan
 \label{fig:seaquest-breakout-reward}
 \end{figure}
 
-We refer to \texttt{Breakout} and \texttt{Seaquest} as our dense reward environments. Specifically, \texttt{Seaquest} is most dense in that positive rewards are given for each \"kill\", which occurs very frequently due to the sheer number of enemies and the fact that the player's submarine is always firing projectiles at high velocity. In fact, positive rewards are already obtained in the early steps of training (as can be seen in Fig. \ref{fig:seaquest-breakout-reward}). \texttt{Breakout} provides a slightly sparser reward but is still denser than that of \texttt{Pong}; rewards are given for each brick broken which occurs every time the agent is able to return the ball. This means that in early training, when the agent is unable to consistently return the ball, there is no reward signal and so training performance is heavily dependent on an exploration factor.
+We refer to \texttt{Breakout} and \texttt{Seaquest} as our dense reward environments. Specifically, \texttt{Seaquest} is most dense in that positive rewards are given for each ``kill'', which occurs very frequently due to the sheer number of enemies and the fact that the player's submarine is always firing projectiles at high velocity. In fact, positive rewards are already obtained in the early steps of training (as can be seen in Fig. \ref{fig:seaquest-breakout-reward}). \texttt{Breakout} provides a slightly sparser reward but is still denser than that of \texttt{Pong}; rewards are given for each brick broken which occurs every time the agent is able to return the ball. This means that in early training, when the agent is unable to consistently return the ball, there is no reward signal and so training performance is heavily dependent on an exploration factor.
 
 We note that curiosity related hyper-parameters were not tuned at all for these environments and so the ICM performance remains an area of improvement, particularly in the variance of the intrinsic rewards. This may be the reasoning for the poor performance of the curious learner compared to the entropy-based learner and we hope to address this in future work. It can also be said that the benefits of an intrinsic curiosity-driven reward in environments with dense extrinsic rewards are not as substantial as in sparse reward environments, where the agent often depends on the intrinsic reward as the only learning signal.
 
