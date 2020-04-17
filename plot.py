@@ -36,7 +36,8 @@ for d in data:
     plt.plot(d[0], smooth(d[1], 0.95), color=colours[i], label=labels[i])
     i = (i+1) % 3
 
-# plt.ylim(0, 1800)
+plt.xlim(0, 1100000)
+plt.ylim(0, 40)
 plt.legend()
 plt.xlabel('Training Update Steps')
 plt.ylabel('Extrinsic Reward per Episode')
