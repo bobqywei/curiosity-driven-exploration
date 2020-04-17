@@ -68,7 +68,7 @@ Self-motivation and curiosity come second nature to humans, both of which are cr
 
 \section{Introduction}
 
-Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity, craving to experience something new, something yet to be seen. Jean Piaget, a Swiss developmental psychologist, asserted that it is in human nature to be curious, inquisitive, and interested in novelty as they develop and acquire knowledge about their environment \cite{piaget}.Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
+Exploration is something that comes naturally to humans, almost as if there exists an innate sense of curiosity, craving to experience something new, something yet to be seen. Jean Piaget, a Swiss developmental psychologist, asserted that it is in human nature to be curious, inquisitive, and interested in novelty as they develop and acquire knowledge about their environment \cite{piaget}. Through observing human behaviour, it is clear that the ability to explore a domain is critical to the process of discovery and learning, regardless of the task being considered.
 
 And yet, even with the massive computational resources available today, the most impressive artificial learning agents struggle tremendously in balancing explicit exploration of the environment and stable convergence towards a useful, learned policy. Without adequate exploration and randomness, the agent can easily become stuck and converge towards a flawed policy early on in learning; the agent's policy reflects high certainty on its understanding of the environment when, in reality, it has yet to explore the majority of the state space. On the other hand, excessive exploration can lead to unstable rewards and updates throughout learning which are detrimental to learning a useful policy. To make matters worse, there is a huge breadth of algorithms and hand-crafted techniques used in reinforcement learning, many of them requiring method or task specific hyperparameter tuning. This in turn leads to very specialized formulations across the field for encouraging exploration.
 
@@ -98,9 +98,9 @@ A2C also uses the value network ($V$) or \textit{critic} which predicts the accu
 \begin{equation}
 \mathcal{L}_V = \frac{1}{n}\sum_i (R_i - V_i)^2\label{eq:value}
 \end{equation}
-The base A2C algorithm does not explicitly seek random exploration as it learns to decide on the action at a https://arxiv.org/pdf/1601.06733.pdf state purely from the policy update. The most commonly used method to introduce randomness to the agent is through maximizing the entropy of the next-action sampling distribution. This distribution is categorical with probabilities defined by the policy network logits.
+The base A2C algorithm does not explicitly seek random exploration as it learns to decide on the action at a state purely from the policy update. The most commonly used method to introduce randomness to the agent is through maximizing the entropy $E$, shown in Fig. \ref{eq:entropy}, of the next-action sampling distribution. This distribution is categorical with probabilities defined by the policy network logits.
 \begin{equation}\label{eq:entropy}
-\mathcal{L}_E = \sum_a (-\log \pi_a \times \mu_\pi)
+E = \sum_a (-\log \pi_a \times \mu_\pi)
 \end{equation}
 Instead of minizing the loss function in Eq. \ref{eq:entropy}, we maximize the value so that the individual probabilities of the sampling distribution $\pi_a$ are as similar as possible; thus, inducing a degree of randomness in the policy network's state to action mapping.
 
@@ -122,7 +122,7 @@ Further, the purpose of the inverse model $f_{Inv}$ is to train the feature extr
 \end{equation}
 The described curiosity model is incorporated into the base A2C model and can be trained jointly:
 \begin{equation}
-\mathcal{L} = \mathcal{L}_P + \lambda_{V}\mathcal{L}_V - \lambda_{E}\mathcal{L}_E + \mathcal{L}_{Fwd} + \mathcal{L}_{Inv}
+\mathcal{L} = \mathcal{L}_P + \lambda_{V}\mathcal{L}_V - \lambda_{E}E + \mathcal{L}_{Fwd} + \mathcal{L}_{Inv}
 \end{equation}
 where we use $\lambda_V=0.5$ and $\lambda_E=0.02$.
 
@@ -174,11 +174,11 @@ Looking at the baseline A2C model (red in Fig. \ref{fig:pong-reward}), performan
   \centering
   \includegraphics[width=1.\linewidth]{figures/seaquest_rewards}
 \end{subfigure}
-\caption{Here we compare the three A2C variants in the \texttt{Breakout} (left) and \texttt{Seaquest} (right) environments. Rewards are again cumulative over an entire episode.}
+\caption{Here we compare the three A2C variants in the \texttt{Breakout} (left) and \texttt{Seaquest} (right) environments. Rewards are again cumulative over an entire episode. We note that the performance of the curious learner (cyan) is worse at times than the A2C + Entropy model (yellow), which is perhaps due to the lack of hyper-parameter tuning and the density of the extrinsic reward in these environments.}
 \label{fig:seaquest-breakout-reward}
 \end{figure}
 
-We refer to \texttt{Breakout} and \texttt{Seaquest} as our dense reward environments. Specifically, \texttt{Seaquest} is most dense in that positive rewards are given for each ``kill'', which occurs very frequently due to the sheer number of enemies and the fact that the player's submarine is always firing projectiles at high velocity. In fact, positive rewards are already obtained in the early steps of training (as can be seen in Fig. \ref{fig:seaquest-breakout-reward}). \texttt{Breakout} provides a slightly sparser reward but is still denser than that of \texttt{Pong}; rewards are given for each brick broken which occurs every time the agent is able to return the ball. This means that in early training, when the agent is unable to consistently return the ball, there is no reward signal and so training performance is heavily dependent on an exploration factor.
+We refer to \texttt{Breakout} and \texttt{Seaquest} as our dense reward environments. Specifically, \texttt{Seaquest} is most dense in that positive rewards are given for each ``kill'', which occurs very frequently due to the sheer number of enemies and the fact that the player's submarine is always firing projectiles at high velocity. In fact, positive rewards are already obtained in the early steps of training (as can be seen in the right of Fig. \ref{fig:seaquest-breakout-reward}). \texttt{Breakout} provides a slightly sparser reward but is still denser than that of \texttt{Pong}; rewards are given for each brick broken which occurs every time the agent is able to return the ball. This means that in early training, when the agent is unable to consistently return the ball, there is no reward signal and so training performance is heavily dependent on an exploration factor.
 
 We note that curiosity related hyper-parameters were not tuned at all for these environments and so the ICM performance remains an area of improvement, particularly in the variance of the intrinsic rewards. This may be the reasoning for the poor performance of the curious learner compared to the entropy-based learner and we hope to address this in future work. It can also be said that the benefits of an intrinsic curiosity-driven reward in environments with dense extrinsic rewards are not as substantial as in sparse reward environments, where the agent often depends on the intrinsic reward as the only learning signal.
 
@@ -264,6 +264,7 @@ The limitations we faced in our work were mostly related to time available to co
 
 In the future, we would like to diversify the environments investigated in this paper. \texttt{Pong}, \texttt{Breakout}, and \texttt{Seaquest} are all Atari games where the states and frames of the game do not change drastically from one state to another. This could perhaps be a factor affecting the ICM due to the fact that novelty in states for curiosity is defined by the change in its features. Through more experiments in a diversified set of environments including environments with more distinct states, additional insights about the effect of exploration and curiosity might be revealed.
 
+\newpage
 \bibliography{main}
 \bibliographystyle{ieeetr}
 
