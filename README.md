@@ -1,6 +1,6 @@
 # Curiosity Driven Exploration
 ### Department of Computer Science, University of Waterloo
-This is the source code for our work, Motivating Exploration in Reinforcement Learning. Our code is written using Pytorch, including the first implementation of the ICM module in Pytorch.
+This is the source code for our work, Motivating Exploration in Reinforcement Learning. Our code is written using Pytorch, including the first implementation of the ICM module in Pytorch. This work was done as a final project for Computational Neuroscience (SYDE 552 / BIOL 487) at the University of Waterloo.
 
 ## Project Materials
 - Our report for this work can be found [here](paper/main.pdf)!
