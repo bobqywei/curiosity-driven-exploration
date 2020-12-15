@@ -4,7 +4,7 @@ This is the source code for our work, Motivating Exploration in Reinforcement Le
 
 ## Project Materials
 - Our report for this work can be found [here](paper/main.pdf)!
-- Supplementary videos of our agents interacting in different OpenAI Gym environments can be found [here](https://drive.google.com/drive/folders/1afjQFvrJse2phQuTrLDE0FhVifQKpM2K?usp=sharing)!
+- Supplementary videos of our agents interacting in different OpenAI Gym environments can be found [here](videos/)!
 
 ## Code References
 - https://pathak22.github.io/noreward-rl/ </br>
